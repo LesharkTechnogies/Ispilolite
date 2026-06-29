@@ -1,0 +1,26 @@
+server:
+  base_url_prod: "https://lite.ispilo.co.ke/api/v1"
+  base_url_local: "http://localhost:8080/api/v1"
+  port: 8080
+
+database:
+  postgres_writer:
+    host: "writer.db.ispilolite.com"
+    port: 5432
+    user: "writer_user"
+    password: "writer_password"
+    dbname: "ispilolite_db"
+  postgres_reader:
+    host: "reader.db.ispilolite.com"
+    port: 5432
+    user: "reader_user"
+    password: "reader_password"
+    dbname: "ispilolite_db"
+  redis:
+    host: "redis.ispilolite.com"
+    port: 6379
+
+jwt:
+  secret: "your-super-secret-key"
+  issuer: "ispilolite"
+  expiry_hours: 72
