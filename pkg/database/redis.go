@@ -1,11 +1,12 @@
 package database
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"os"
 
     "github.com/go-redis/redis/v8"
+	"gopkg.in/yaml.v2"
 )
 
 // RedisConfig holds the configuration for a redis connection.
@@ -28,15 +29,15 @@ var (
 )
 
 // InitRedis initializes the redis client.
-func InitRedis(configPath string) {
-	configFile, err := ioutil.ReadFile(configPath)
+func InitRedis(configPath string) error {
+	configFile, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Fatalf("failed to read config file: %v", err)
+		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	var config RedisRootConfig
 	if err := yaml.Unmarshal(configFile, &config); err != nil {
-		log.Fatalf("failed to unmarshal config: %v", err)
+		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	RedisClient = redis.NewClient(&redis.Options{
@@ -45,7 +46,12 @@ func InitRedis(configPath string) {
 		DB:       config.Database.Redis.DB,
 	})
 
-	log.Printf("redis initialization completed")
+	if err := RedisClient.Ping(context.Background()).Err(); err != nil {
+		_ = RedisClient.Close()
+		RedisClient = nil
+		return fmt.Errorf("failed to connect to redis: %w", err)
+	}
+	return nil
 }
 
 // GetRedis returns the redis client.

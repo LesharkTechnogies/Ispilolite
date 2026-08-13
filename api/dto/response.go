@@ -58,11 +58,6 @@ type UserProfileResponse struct {
     Statistics     *UserStatisticsDTO    `json:"statistics,omitempty"`
 }
 
-type LocationDTO struct {
-    Lat float64 `json:"lat"`
-    Lng float64 `json:"lng"`
-}
-
 type UserStatisticsDTO struct {
     CompletedInstallations int `json:"completed_installations"`
     PendingRequests        int `json:"pending_requests"`

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"ispilolite/internal/repository"
 	"ispilolite/internal/services/notification"
 	"ispilolite/internal/utils"
+
+	"github.com/lib/pq"
 )
 
 var (
@@ -66,13 +69,16 @@ func NewAuthService(userRepo repository.UserRepository, cacheRepo repository.Cac
 // CreateUser registers a new user.
 func (s *AuthService) CreateUser(req dto.RegisterRequest) (*models.User, error) {
 	phone := strings.TrimSpace(req.Phone)
-	_, err := s.userRepo.GetUserByPhone(phone)
-	if err == nil {
+	if _, err := s.userRepo.GetUserByPhone(phone); err == nil {
 		return nil, ErrUserAlreadyExists
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("check phone uniqueness: %w", err)
 	}
 	if username := strings.TrimSpace(req.Username); username != "" {
 		if _, err := s.userRepo.GetUserByUsername(username); err == nil {
 			return nil, ErrUserAlreadyExists
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("check username uniqueness: %w", err)
 		}
 	}
 
@@ -102,6 +108,12 @@ func (s *AuthService) CreateUser(req dto.RegisterRequest) (*models.User, error) 
 	}
 
 	if err := s.userRepo.CreateUser(user); err != nil {
+		// The pre-checks provide a useful response for normal requests; unique
+		// indexes remain authoritative when two registrations race.
+		var pgErr *pq.Error
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrUserAlreadyExists
+		}
 		return nil, err
 	}
 
@@ -139,7 +151,7 @@ func (s *AuthService) AuthenticateWithUsername(username, password string) (*mode
 
 // GetUserByPhone fetches a user by phone number.
 func (s *AuthService) GetUserByPhone(phone string) (*models.User, error) {
-	return s.userRepo.GetUserByPhone(phone)
+	return s.userRepo.GetUserByPhone(strings.TrimSpace(phone))
 }
 
 // GetUserByID fetches a user by ID.
@@ -175,7 +187,7 @@ func (s *AuthService) IssueOTP(userID string) (string, int, error) {
 
 // RequestLoginOTP validates phone and issues an OTP.
 func (s *AuthService) RequestLoginOTP(phone string) (*models.User, int, error) {
-	user, err := s.userRepo.GetUserByPhone(phone)
+	user, err := s.userRepo.GetUserByPhone(strings.TrimSpace(phone))
 	if err != nil {
 		return nil, 0, ErrPhoneNotRegistered
 	}

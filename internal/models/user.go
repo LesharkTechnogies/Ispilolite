@@ -30,7 +30,4 @@ type User struct {
 	ISP_ID       string       `json:"isp_id,omitempty"`
 	Status       string       `json:"status"`
 	AvatarURL  string    `json:"avatar_url" db:"avatar_url"`
-	Rating     float64   `json:"rating" db:"rating"`
-	CreatedAt  time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }

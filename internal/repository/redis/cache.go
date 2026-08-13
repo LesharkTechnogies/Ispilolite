@@ -1,40 +1,45 @@
 package redis
 
 import (
-    "context"
-    "fmt"
-    "time"
+	"context"
+	"encoding/json"
+	"time"
 
-    "github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
+	"ispilolite/pkg/database"
 )
 
-// OTPRepository implements the OTP repository for Redis.
-type OTPRepository struct {
-    rdb *redis.Client
+type CacheRepo struct{ client *goredis.Client }
+
+func NewCacheRepo() *CacheRepo { return &CacheRepo{client: database.GetRedis()} }
+
+func (r *CacheRepo) SetOTP(userID, otp string, expiration time.Duration) error {
+	return r.client.Set(context.Background(), "otp:"+userID, otp, expiration).Err()
 }
 
-// NewOTPRepository creates a new OTPRepository.
-func NewOTPRepository(rdb *redis.Client) *OTPRepository {
-    return &OTPRepository{rdb: rdb}
+func (r *CacheRepo) GetOTP(userID string) (string, error) {
+	return r.client.Get(context.Background(), "otp:"+userID).Result()
 }
 
-// SetOTP stores the OTP for a given user ID with an expiration.
-func (r *OTPRepository) SetOTP(ctx context.Context, userID string, otp string, expiration time.Duration) error {
-    key := fmt.Sprintf("otp:%s", userID)
-    return r.rdb.Set(ctx, key, otp, expiration).Err()
+func (r *CacheRepo) DeleteOTP(userID string) error {
+	return r.client.Del(context.Background(), "otp:"+userID).Err()
 }
 
-// GetOTP retrieves the OTP for a given user ID and deletes it.
-func (r *OTPRepository) GetOTP(ctx context.Context, userID string) (string, error) {
-    key := fmt.Sprintf("otp:%s", userID)
-    otp, err := r.rdb.Get(ctx, key).Result()
-    if err != nil {
-        return "", err
-    }
-    // Delete the OTP after it has been retrieved to ensure it's used only once.
-    if err := r.rdb.Del(ctx, key).Err(); err != nil {
-        // Log the error but don't fail the operation, as the OTP has been retrieved.
-        fmt.Printf("Warning: failed to delete OTP for user %s: %v\n", userID, err)
-    }
-    return otp, nil
+func (r *CacheRepo) Set(key string, value interface{}, expiration time.Duration) error {
+	encoded, err := json.Marshal(value)
+	if err != nil { return err }
+	return r.client.Set(context.Background(), key, encoded, expiration).Err()
+}
+
+func (r *CacheRepo) Get(key string) (string, error) {
+	return r.client.Get(context.Background(), key).Result()
+}
+
+func (r *CacheRepo) SetRevokedToken(token string, expiration time.Duration) error {
+	return r.client.Set(context.Background(), "revoked:"+token, "1", expiration).Err()
+}
+
+func (r *CacheRepo) IsTokenRevoked(token string) bool {
+	exists, err := r.client.Exists(context.Background(), "revoked:"+token).Result()
+	return err == nil && exists > 0
 }

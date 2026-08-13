@@ -144,7 +144,6 @@ func (r *userRepo) UpdateUser(user *models.User) error {
 	_, err := r.dbWriter.Exec(
 		query,
 		user.Name,
-		user.Username,
 		user.Email,
 		user.IsVerified,
 		user.UpdatedAt,

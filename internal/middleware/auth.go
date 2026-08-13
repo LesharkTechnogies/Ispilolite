@@ -22,7 +22,10 @@ var (
 	// jwtKey should be loaded from a secure configuration in a real application.
 	jwtKey []byte
 	issuer string
+	revocationChecker func(string) bool
 )
+
+func SetRevocationChecker(checker func(string) bool) { revocationChecker = checker }
 
 // InitAuth initializes the authentication middleware with a secret key and issuer.
 func InitAuth(secret, iss string) {
@@ -64,6 +67,10 @@ func AuthMiddleware(requiredRole string) func(http.Handler) http.Handler {
 			claims, err := validateToken(tokenString)
 			if err != nil {
 				http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+				return
+			}
+			if revocationChecker != nil && revocationChecker(tokenString) {
+				http.Error(w, "Unauthorized: token revoked", http.StatusUnauthorized)
 				return
 			}
 

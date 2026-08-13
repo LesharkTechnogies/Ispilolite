@@ -13,18 +13,12 @@ type RegisterRequest struct {
 	Role     string `json:"role" binding:"required,oneof=customer technician isp"`
 	Username string `json:"username,omitempty"`
 	Password string `json:"password" binding:"required,min=6"`
-    Phone    string `json:"phone" binding:"required"`
-    Name     string `json:"name" binding:"required"`
-    Email    string `json:"email" binding:"required,email"`
-    Role     string `json:"role" binding:"required,oneof=customer technician isp"`
-    Password string `json:"password" binding:"required,min=6"`
 }
 
 type LoginRequest struct {
 	Phone    string `json:"phone" binding:"required"`
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
-    Phone string `json:"phone" binding:"required"`
 }
 
 type ISPProfileRequest struct { Name string `json:"name"`; Description string `json:"description"`; LogoURL string `json:"logo_url"`; CustomerCareNumber string `json:"customer_care_number"`; AvgResponseTime int `json:"avg_response_time"`; AvgPrice float64 `json:"avg_price"` }
