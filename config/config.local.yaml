@@ -1,0 +1,30 @@
+server:
+  base_url_prod: "https://lite.ispilo.co.ke/api/v1"
+  base_url_local: "http://localhost:8001/api/v1"
+  port: 8001
+
+# Local development configuration. Point CONFIG_PATH at this file to run the
+# API against a local Postgres + Redis (see docker/docker-compose for services).
+# Reader and writer share one instance locally; in production they are the
+# primary and a read replica.
+database:
+  postgres_writer:
+    host: "${LOCAL_DB_HOST}"
+    port: ${LOCAL_DB_PORT}
+    user: "${LOCAL_DB_USER}"
+    password: "${LOCAL_DB_PASSWORD}"
+    dbname: "${LOCAL_DB_NAME}"
+  postgres_reader:
+    host: "${LOCAL_DB_HOST}"
+    port: ${LOCAL_DB_PORT}
+    user: "${LOCAL_DB_USER}"
+    password: "${LOCAL_DB_PASSWORD}"
+    dbname: "${LOCAL_DB_NAME}"
+  redis:
+    host: "${LOCAL_REDIS_HOST}"
+    port: ${LOCAL_REDIS_PORT}
+
+jwt:
+  secret: "ispilolite-dev-secret"
+  issuer: "ispilolite"
+  expiry_hours: 72

@@ -5,19 +5,19 @@ server:
 
 database:
   postgres_writer:
-    host: "writer.db.ispilolite.com"
+    host: "${DB_WRITER_HOST}"
     port: 5432
-    user: "writer_user"
-    password: "writer_password"
-    dbname: "ispilolite_db"
+    user: "${DB_WRITER_USER}"
+    password: "${DB_WRITER_PASSWORD}"
+    dbname: "${DB_NAME}"
   postgres_reader:
-    host: "reader.db.ispilolite.com"
+    host: "${DB_READER_HOST}"
     port: 5432
-    user: "reader_user"
-    password: "reader_password"
-    dbname: "ispilolite_db"
+    user: "${DB_READER_USER}"
+    password: "${DB_READER_PASSWORD}"
+    dbname: "${DB_NAME}"
   redis:
-    host: "redis.ispilolite.com"
+    host: "${REDIS_HOST}"
     port: 6379
 
 jwt:

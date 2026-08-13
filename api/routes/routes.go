@@ -3,78 +3,192 @@ package routes
 import (
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"ispilolite/api/handlers"
 	"ispilolite/internal/middleware"
-	"ispilolite/internal/services/job"
-
-	"github.com/gorilla/mux"
+	"ispilolite/pkg/database"
 )
 
-// Placeholder handler functions
-func placeholderHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `{"status": "success", "message": "Endpoint not yet implemented"}`)
+// SetupRouter configures and returns the main application handler.
+func SetupRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	authHandler := handlers.NewAuthHandler()
+	ispHandler := handlers.NewISPHandler()
+	clientHandler := handlers.NewClientHandler()
+	ispEndpointsHandler := handlers.NewISPEndpointsHandler()
+	technicianHandler := handlers.NewTechnicianHandler()
+	adminHandler := handlers.NewAdminHandler()
+	locationHandler := handlers.NewLocationHandler()
+
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		writer, reader, redisClient := database.GetWriter(), database.GetReader(), database.GetRedis()
+		if writer == nil || reader == nil || redisClient == nil ||
+			writer.PingContext(ctx) != nil || reader.PingContext(ctx) != nil || redisClient.Ping(ctx).Err() != nil {
+			http.Error(w, "dependencies unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ready"))
+	})
+
+	mux.Handle("/api/v1/admin/deletion-requests", middleware.AuthMiddleware("admin")(methodHandler(http.MethodGet, adminHandler.GetDeletionRequests)))
+	mux.Handle("/api/v1/admin/approve-deletion", middleware.AuthMiddleware("admin")(methodHandler(http.MethodPost, adminHandler.ApproveDeletion)))
+
+	mux.HandleFunc("/api/v1/auth/register", methodHandler(http.MethodPost, authHandler.Register))
+	mux.HandleFunc("/api/v1/auth/login", methodHandler(http.MethodPost, authHandler.Login))
+	mux.HandleFunc("/api/v1/auth/verify-otp", methodHandler(http.MethodPost, authHandler.VerifyOTP))
+	mux.HandleFunc("/api/v1/auth/refresh", methodHandler(http.MethodPost, authHandler.RefreshToken))
+	mux.HandleFunc("/api/v1/auth/logout", methodHandler(http.MethodPost, authHandler.Logout))
+
+	mux.HandleFunc("/api/v1/isps", methodHandler(http.MethodGet, ispHandler.GetISPs))
+	mux.HandleFunc("/api/v1/isps/", ispDispatcher(ispHandler))
+
+	// Geospatial location endpoints (ispiloliteapi.md §3.2). Search is public;
+	// submitting a place requires authentication so submissions can be counted
+	// per distinct user for crowd-sourced verification.
+	mux.HandleFunc("/api/v1/geo/locations/search", methodHandler(http.MethodGet, locationHandler.SearchLocations))
+	mux.HandleFunc("/api/v1/geo/locations", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		middleware.AuthMiddleware("")(http.HandlerFunc(locationHandler.SubmitLocation)).ServeHTTP(w, r)
+	})
+	mux.HandleFunc("/api/v1/geo/locations/", methodHandler(http.MethodGet, locationHandler.GetLocation))
+
+	mux.Handle("/api/v1/installations", middleware.AuthMiddleware("customer")(methodHandler(http.MethodPost, clientHandler.CreateInstallation)))
+	mux.Handle("/api/v1/my/installations", middleware.AuthMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch role := currentRole(r.Context()); role {
+		case "customer":
+			methodHandler(http.MethodGet, clientHandler.GetInstallations)(w, r)
+		case "isp":
+			methodHandler(http.MethodGet, ispEndpointsHandler.GetInstallations)(w, r)
+		default:
+			http.Error(w, "forbidden", http.StatusForbidden)
+		}
+	})))
+
+	mux.Handle("/api/v1/my/profile", middleware.AuthMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch role := currentRole(r.Context()); role {
+		case "customer":
+			switch r.Method {
+			case http.MethodGet:
+				clientHandler.GetProfile(w, r)
+			case http.MethodPut:
+				clientHandler.UpdateProfile(w, r)
+			case http.MethodDelete:
+				clientHandler.RequestDeleteProfile(w, r)
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+		case "isp":
+			switch r.Method {
+			case http.MethodGet:
+				ispEndpointsHandler.GetProfile(w, r)
+			case http.MethodPut:
+				ispEndpointsHandler.UpdateProfile(w, r)
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+		case "technician":
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			technicianHandler.GetProfile(w, r)
+		default:
+			http.Error(w, "forbidden", http.StatusForbidden)
+		}
+	})))
+
+	mux.Handle("/api/v1/installations/", middleware.AuthMiddleware("isp")(methodHandler(http.MethodPut, ispEndpointsHandler.UpdateInstallation)))
+	mux.Handle("/api/v1/my/technicians", middleware.AuthMiddleware("isp")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			ispEndpointsHandler.GetTechnicians(w, r)
+		case http.MethodPost:
+			ispEndpointsHandler.AddTechnician(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+	mux.HandleFunc("/api/v1/technicians/", func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/requests"):
+			middleware.AuthMiddleware("customer")(http.HandlerFunc(technicianHandler.CreateJobRequest)).ServeHTTP(w, r)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/reviews"):
+			middleware.AuthMiddleware("customer")(http.HandlerFunc(technicianHandler.CreateTechnicianReview)).ServeHTTP(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/reviews"):
+			technicianHandler.GetTechnicianReviews(w, r)
+		case r.Method == http.MethodDelete:
+			middleware.AuthMiddleware("isp")(http.HandlerFunc(ispEndpointsHandler.RemoveTechnician)).ServeHTTP(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.Handle("/api/v1/my/packages", middleware.AuthMiddleware("isp")(methodHandler(http.MethodPost, ispEndpointsHandler.CreatePackage)))
+	mux.Handle("/api/v1/packages/", middleware.AuthMiddleware("isp")(methodHandler(http.MethodPut, ispEndpointsHandler.UpdatePackage)))
+
+	mux.Handle("/api/v1/my/jobs", middleware.AuthMiddleware("technician")(methodHandler(http.MethodGet, technicianHandler.GetJobs)))
+	mux.Handle("/api/v1/jobs/", middleware.AuthMiddleware("technician")(methodHandler(http.MethodPut, technicianHandler.UpdateJobStatus)))
+
+	return mux
 }
 
-// SetupRouter configures and returns the main application router.
-func SetupRouter(authHandler *handlers.AuthHandler, jobService *job.JobService, searchHandler *handlers.SearchHandler) *mux.Router {
-	// Create the main router
-	router := mux.NewRouter()
-	jobHandler := handlers.NewJobHandler(jobService)
+func methodHandler(method string, handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != method {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-	// Create a subrouter for the versioned API path
-	apiV1 := router.PathPrefix("/api/v1").Subrouter()
+		handler(w, r)
+	}
+}
 
-	// --- Auth Endpoints ---
-	authRoutes := apiV1.PathPrefix("/auth").Subrouter()
-	authRoutes.HandleFunc("/register", authHandler.Register).Methods(http.MethodPost)
-	authRoutes.HandleFunc("/login", authHandler.Login).Methods(http.MethodPost)
-	authRoutes.HandleFunc("/verify-otp", authHandler.VerifyOTP).Methods(http.MethodPost)
-	authRoutes.HandleFunc("/refresh", authHandler.Refresh).Methods(http.MethodPost)
-	authRoutes.HandleFunc("/logout", authHandler.Logout).Methods(http.MethodPost)
+func ispDispatcher(ispHandler *handlers.ISPHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/isps":
+			ispHandler.GetISPs(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/packages"):
+			ispHandler.GetISPPackages(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/reviews"):
+			ispHandler.GetISPReviews(w, r)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/reviews"):
+			middleware.AuthMiddleware("customer")(http.HandlerFunc(ispHandler.CreateISPReview)).ServeHTTP(w, r)
+		case r.Method == http.MethodGet:
+			ispHandler.GetISPByID(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
 
-	// --- Public Endpoints (No Authentication Required) ---
-	public := apiV1.Methods(http.MethodGet).Subrouter()
-	public.HandleFunc("/isps", jobHandler.GetISPs)
-	public.HandleFunc("/isps/{isp_id}", jobHandler.GetISPByID)
-	public.HandleFunc("/isps/{isp_id}/packages", placeholderHandler)
-	public.HandleFunc("/isps/{isp_id}/reviews", placeholderHandler)
+func currentRole(ctx context.Context) string {
+	if value := ctx.Value("userRole"); value != nil {
+		if role, ok := value.(string); ok {
+			return role
+		}
+	}
 
-	// --- Search Endpoints (Public) ---
-	searchRoutes := apiV1.PathPrefix("/search").Subrouter()
-	searchRoutes.HandleFunc("/locations", searchHandler.SearchLocations).Methods(http.MethodGet)
-	searchRoutes.HandleFunc("/isps", searchHandler.SearchISPs).Methods(http.MethodGet)
-	searchRoutes.HandleFunc("/technicians", searchHandler.SearchTechnicians).Methods(http.MethodGet)
-
-	// --- Client Endpoints (Client Role Required) ---
-	clientRoutes := apiV1.PathPrefix("").Subrouter()
-	clientRoutes.Use(middleware.AuthMiddleware("Client"))
-	clientRoutes.HandleFunc("/installations", placeholderHandler).Methods(http.MethodPost)
-	clientRoutes.HandleFunc("/my/installations", placeholderHandler).Methods(http.MethodGet)
-	clientRoutes.HandleFunc("/my/profile", authHandler.GetMyProfile).Methods(http.MethodGet)
-	clientRoutes.HandleFunc("/my/profile", authHandler.UpdateMyProfile).Methods(http.MethodPut)
-	clientRoutes.HandleFunc("/isps/{isp_id}/reviews", placeholderHandler).Methods(http.MethodPost)
-
-	// --- ISP Endpoints (ISP Role Required) ---
-	ispRoutes := apiV1.PathPrefix("").Subrouter()
-	ispRoutes.Use(middleware.AuthMiddleware("ISP"))
-	ispRoutes.HandleFunc("/my/profile", authHandler.GetMyISPProfile).Methods(http.MethodGet)
-	ispRoutes.HandleFunc("/my/profile", authHandler.UpdateMyISPProfile).Methods(http.MethodPut)
-	ispRoutes.HandleFunc("/my/installations", placeholderHandler).Methods(http.MethodGet)
-	ispRoutes.HandleFunc("/installations/{install_id}", placeholderHandler).Methods(http.MethodPut)
-	ispRoutes.HandleFunc("/my/technicians", placeholderHandler).Methods(http.MethodGet, http.MethodPost)
-	ispRoutes.HandleFunc("/technicians/{tech_id}", placeholderHandler).Methods(http.MethodDelete)
-	ispRoutes.HandleFunc("/my/packages", placeholderHandler).Methods(http.MethodPost)
-	ispRoutes.HandleFunc("/packages/{package_id}", placeholderHandler).Methods(http.MethodPut)
-
-	// --- Technician Endpoints (Technician Role Required) ---
-	techRoutes := apiV1.PathPrefix("").Subrouter()
-	techRoutes.Use(middleware.AuthMiddleware("Technician"))
-	techRoutes.HandleFunc("/my/profile", authHandler.GetMyTechProfile).Methods(http.MethodGet)
-	techRoutes.HandleFunc("/my/jobs", placeholderHandler).Methods(http.MethodGet)
-	techRoutes.HandleFunc("/jobs/{job_id}/status", placeholderHandler).Methods(http.MethodPut)
-
-	return router
+	return ""
 }

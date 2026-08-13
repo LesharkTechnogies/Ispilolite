@@ -1,0 +1,5 @@
+{
+    "claudeCode.enableNewConversationShortcut": true,
+    "claudeCode.disableLoginPrompt": true,
+    "claudeCode.useCtrlEnterToSend": false
+}

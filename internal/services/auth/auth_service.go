@@ -1,366 +1,353 @@
 package auth
 
 import (
-	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/big"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
-	"golang.org/x/crypto/bcrypt"
-	"ispilolite/api/dto"
+	dto "ispilolite/api/dto"
 	"ispilolite/internal/models"
+	"ispilolite/internal/repository"
+	"ispilolite/internal/services/notification"
+	"ispilolite/internal/utils"
 )
 
-// UserRepository defines the interface for user data operations.
-type UserRepository interface {
-	CreateUser(ctx context.Context, user *models.User) (*models.User, error)
-	FindByPhone(ctx context.Context, phone string) (*models.User, error)
-	FindByID(ctx context.Context, id string) (*models.User, error)
-	UpdateUser(ctx context.Context, user *models.User) error
-}
+var (
+	ErrUserAlreadyExists  = errors.New("user already exists")
+	ErrPhoneNotRegistered = errors.New("phone not registered")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrInvalidOTP         = errors.New("invalid OTP")
+	ErrOTPExpired         = errors.New("OTP expired")
+	ErrInvalidToken       = errors.New("invalid token")
+	ErrInvalidPassword    = errors.New("invalid credentials")
+	ErrAccountUnverified  = errors.New("account is not verified")
+	ErrTokenRevoked       = errors.New("token revoked")
+)
 
-// OTPRepository defines the interface for OTP storage operations.
-type OTPRepository interface {
-	SetOTP(ctx context.Context, userID string, otp string, expiration time.Duration) error
-	GetOTP(ctx context.Context, userID string) (string, error)
-}
-
-// AuthService provides authentication-related business logic.
+// AuthService handles authentication logic.
 type AuthService struct {
-	UserRepo  UserRepository
-	OTPRepo   OTPRepository
-	jwtSecret string
+	userRepo   repository.UserRepository
+	cacheRepo  repository.CacheRepository
+	notifier   notification.Sender
+	secret     []byte
+	issuer     string
+	accessTTL  time.Duration
+	refreshTTL time.Duration
+	otpTTL     time.Duration
 }
 
 // NewAuthService creates a new AuthService.
-func NewAuthService(userRepo UserRepository, otpRepo OTPRepository, jwtSecret string) *AuthService {
+func NewAuthService(userRepo repository.UserRepository, cacheRepo repository.CacheRepository) *AuthService {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "ispilolite-dev-secret"
+	}
+
+	issuer := os.Getenv("JWT_ISSUER")
+	if issuer == "" {
+		issuer = "ispilolite"
+	}
+
 	return &AuthService{
-		UserRepo:  userRepo,
-		OTPRepo:   otpRepo,
-		jwtSecret: jwtSecret,
+		userRepo:   userRepo,
+		cacheRepo:  cacheRepo,
+		notifier:   notification.NewSenderFromEnv(),
+		secret:     []byte(secret),
+		issuer:     issuer,
+		accessTTL:  15 * time.Minute,
+		refreshTTL: 7 * 24 * time.Hour,
+		otpTTL:     5 * time.Minute,
 	}
 }
 
-// Register creates a new user, generates an OTP, and sends it.
-func (s *AuthService) Register(ctx context.Context, req dto.RegisterRequest) (interface{}, error) {
-	if err := validateRegistration(req); err != nil {
+// CreateUser registers a new user.
+func (s *AuthService) CreateUser(req dto.RegisterRequest) (*models.User, error) {
+	phone := strings.TrimSpace(req.Phone)
+	_, err := s.userRepo.GetUserByPhone(phone)
+	if err == nil {
+		return nil, ErrUserAlreadyExists
+	}
+	if username := strings.TrimSpace(req.Username); username != "" {
+		if _, err := s.userRepo.GetUserByUsername(username); err == nil {
+			return nil, ErrUserAlreadyExists
+		}
+	}
+
+	passwordHash := ""
+	if normalizeRole(req.Role) != "customer" {
+		var err error
+		passwordHash, err = utils.HashPassword(req.Password)
+		if err != nil { return nil, err }
+	}
+
+	now := time.Now().UTC()
+	user := &models.User{
+		ID:           utils.GenerateID(),
+		Phone:        phone,
+		Username:     strings.TrimSpace(req.Username),
+		Name:         strings.TrimSpace(req.Name),
+		Email:        strings.TrimSpace(req.Email),
+		Role:         normalizeRole(req.Role),
+		PasswordHash: passwordHash,
+		IsVerified:   false,
+		Rating:       0,
+		TotalRatings: 0,
+		Status:       "active",
+		Joined:       now,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.userRepo.CreateUser(user); err != nil {
 		return nil, err
 	}
-	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, errors.New("failed to hash password")
-	}
 
-	// Create a new user model
-	newUser := &models.User{
-		Name:     req.Name,
-		Email:    req.Email,
-		Phone:    req.Phone,
-		Role:     req.Role,
-		Password: string(hashedPassword),
-	}
-
-	// Save the user to the database
-	createdUser, err := s.UserRepo.CreateUser(ctx, newUser)
-	if err != nil {
-		return nil, errors.New("failed to create user")
-	}
-
-	otp, err := generateOTP()
-	if err != nil {
-		return nil, errors.New("failed to generate OTP")
-	}
-	expiration := 5 * time.Minute
-	if err := s.OTPRepo.SetOTP(ctx, createdUser.ID, otp, expiration); err != nil {
-		return nil, errors.New("failed to set OTP")
-	}
-
-	// Return the response
-	return struct {
-		UserID    string `json:"user_id"`
-		OTPSent   bool   `json:"otp_sent"`
-		ExpiresIn int    `json:"expires_in"`
-	}{
-		UserID:    createdUser.ID,
-		OTPSent:   true,
-		ExpiresIn: int(expiration.Seconds()),
-	}, nil
+	return user, nil
 }
 
-// Login finds a user by phone number and sends an OTP.
-func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest) (interface{}, error) {
-	if strings.TrimSpace(req.Phone) == "" {
-		return nil, errors.New("phone is required")
-	}
-	// Find the user by phone number
-	user, err := s.UserRepo.FindByPhone(ctx, req.Phone)
+// AuthenticateWithPassword verifies a phone/password pair and returns the user.
+// It performs a constant-time password comparison and does not disclose whether
+// the phone or the password was the failing factor.
+func (s *AuthService) AuthenticateWithPassword(phone, password string) (*models.User, error) {
+	user, err := s.userRepo.GetUserByPhone(strings.TrimSpace(phone))
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, ErrInvalidPassword
 	}
 
-	otp, err := generateOTP()
-	if err != nil {
-		return nil, errors.New("failed to generate OTP")
+	ok, err := utils.VerifyPassword(password, user.PasswordHash)
+	if err != nil || !ok {
+		return nil, ErrInvalidPassword
 	}
-	expiration := 5 * time.Minute
-	if err := s.OTPRepo.SetOTP(ctx, user.ID, otp, expiration); err != nil {
-		return nil, errors.New("failed to set OTP")
+	if user.Role == "customer" { return nil, ErrInvalidPassword }
+	if !user.IsVerified { return nil, ErrAccountUnverified }
+
+	return user, nil
+}
+
+func (s *AuthService) AuthenticateWithUsername(username, password string) (*models.User, error) {
+	user, err := s.userRepo.GetUserByUsername(strings.TrimSpace(username))
+	if err != nil { return nil, ErrInvalidPassword }
+	if user.Role == "customer" { return nil, ErrInvalidPassword }
+	ok, err := utils.VerifyPassword(password, user.PasswordHash)
+	if err != nil || !ok { return nil, ErrInvalidPassword }
+	if !user.IsVerified { return nil, ErrAccountUnverified }
+	return user, nil
+}
+
+// GetUserByPhone fetches a user by phone number.
+func (s *AuthService) GetUserByPhone(phone string) (*models.User, error) {
+	return s.userRepo.GetUserByPhone(phone)
+}
+
+// GetUserByID fetches a user by ID.
+func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
+	return s.userRepo.GetUserByID(userID)
+}
+
+// IssueOTP creates, stores, and delivers an OTP for a user.
+func (s *AuthService) IssueOTP(userID string) (string, int, error) {
+	user, err := s.userRepo.GetUserByID(userID)
+	if err != nil {
+		return "", 0, ErrUserNotFound
+	}
+	code, err := generateOTP()
+	if err != nil {
+		return "", 0, err
 	}
 
-	// Return the response
-	return struct {
-		UserID    string `json:"user_id"`
-		OTPSent   bool   `json:"otp_sent"`
-		ExpiresIn int    `json:"expires_in"`
-	}{
+	if err := s.cacheRepo.SetOTP(userID, code, s.otpTTL); err != nil {
+		return "", 0, err
+	}
+
+	// Delivery failures must not leave a dangling OTP the caller can't receive.
+	if s.notifier != nil {
+		if err := s.notifier.Send(user.Phone, "Your Ispilo Lite verification code is "+code+". It expires in 5 minutes."); err != nil {
+			_ = s.cacheRepo.DeleteOTP(userID)
+			return "", 0, fmt.Errorf("failed to deliver OTP: %w", err)
+		}
+	}
+
+	return code, int(s.otpTTL.Seconds()), nil
+}
+
+// RequestLoginOTP validates phone and issues an OTP.
+func (s *AuthService) RequestLoginOTP(phone string) (*models.User, int, error) {
+	user, err := s.userRepo.GetUserByPhone(phone)
+	if err != nil {
+		return nil, 0, ErrPhoneNotRegistered
+	}
+	if !user.IsVerified { return nil, 0, ErrAccountUnverified }
+	if user.Role != "customer" { return nil, 0, ErrInvalidPassword }
+
+	_, expiresIn, err := s.IssueOTP(user.ID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return user, expiresIn, nil
+}
+
+// VerifyOTP checks the OTP and marks the user as verified.
+func (s *AuthService) VerifyOTP(userID, otp string) (*models.User, error) {
+	user, err := s.userRepo.GetUserByID(userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	storedOTP, err := s.cacheRepo.GetOTP(userID)
+	if err != nil {
+		return nil, ErrInvalidOTP
+	}
+
+	if strings.TrimSpace(otp) != storedOTP {
+		return nil, ErrInvalidOTP
+	}
+
+	_ = s.cacheRepo.DeleteOTP(userID)
+
+	user.IsVerified = true
+	user.UpdatedAt = time.Now().UTC()
+	if err := s.userRepo.UpdateUser(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// GenerateAccessToken returns a signed access token.
+func (s *AuthService) GenerateAccessToken(user *models.User) (string, int, error) {
+	return s.generateToken(user, s.accessTTL, "access")
+}
+
+// GenerateRefreshToken returns a signed refresh token.
+func (s *AuthService) GenerateRefreshToken(user *models.User) (string, error) {
+	token, _, err := s.generateToken(user, s.refreshTTL, "refresh")
+	return token, err
+}
+
+// RefreshAccessToken swaps a valid refresh token for a new access token.
+func (s *AuthService) RefreshAccessToken(refreshToken string) (string, int, error) {
+	claims, err := s.parseToken(refreshToken)
+	if err != nil {
+		return "", 0, err
+	}
+
+	if claims.TokenUse != "refresh" {
+		return "", 0, ErrInvalidToken
+	}
+
+	user, err := s.GetUserByID(claims.UserID)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return s.GenerateAccessToken(user)
+}
+
+// Logout revokes a token until its natural expiry.
+func (s *AuthService) Logout(token string) {
+	claims, err := s.parseToken(token)
+	if err != nil {
+		return
+	}
+
+	ttl := time.Until(time.Unix(claims.Expires, 0))
+	if ttl <= 0 {
+		// Already expired; nothing to revoke.
+		return
+	}
+
+	_ = s.cacheRepo.SetRevokedToken(token, ttl)
+}
+
+// IsTokenRevoked reports whether a token has been explicitly revoked (e.g. via logout).
+func (s *AuthService) IsTokenRevoked(token string) bool {
+	return s.cacheRepo.IsTokenRevoked(token)
+}
+
+// ValidateAccessToken parses an access token and rejects it if revoked or not an access token.
+func (s *AuthService) ValidateAccessToken(token string) (*utils.TokenClaims, error) {
+	claims, err := s.parseToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	if claims.TokenUse != "access" {
+		return nil, ErrInvalidToken
+	}
+
+	if s.IsTokenRevoked(token) {
+		return nil, ErrTokenRevoked
+	}
+
+	return claims, nil
+}
+
+func (s *AuthService) generateToken(user *models.User, ttl time.Duration, tokenUse string) (string, int, error) {
+	if user == nil {
+		return "", 0, ErrUserNotFound
+	}
+
+	now := time.Now().UTC()
+	claims := utils.TokenClaims{
 		UserID:    user.ID,
-		OTPSent:   true,
-		ExpiresIn: int(expiration.Seconds()),
-	}, nil
+		Role:      user.Role,
+		TokenUse:  tokenUse,
+		Issuer:    s.issuer,
+		Subject:   user.ID,
+		Expires: now.Add(ttl).Unix(),
+		NotBefore: now.Unix(),
+		IssuedAt:  now.Unix(),
+		ID:        utils.GenerateID(),
+	}
+
+	signed, err := utils.SignToken(s.secret, claims)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return signed, int(ttl.Seconds()), nil
 }
 
-// VerifyOTP verifies the OTP and returns JWT tokens if successful.
-func (s *AuthService) VerifyOTP(ctx context.Context, req dto.VerifyOTPRequest) (interface{}, error) {
-	if strings.TrimSpace(req.UserID) == "" || len(req.OTP) != 6 {
-		return nil, errors.New("invalid or expired OTP")
-	}
-	// Get the OTP from the repository
-	storedOTP, err := s.OTPRepo.GetOTP(ctx, req.UserID)
-	if err != nil {
-		return nil, errors.New("invalid or expired OTP")
+func (s *AuthService) parseToken(raw string) (*utils.TokenClaims, error) {
+	tokenString := strings.TrimSpace(raw)
+	if tokenString == "" {
+		return nil, ErrInvalidToken
 	}
 
-	// Check if the OTP matches
-	if storedOTP != req.OTP {
-		return nil, errors.New("invalid or expired OTP")
+	claims, err := utils.ParseToken(s.secret, tokenString)
+	if err != nil {
+		return nil, ErrInvalidToken
 	}
 
-	// Get the user from the repository
-	user, err := s.UserRepo.FindByID(ctx, req.UserID)
-	if err != nil {
-		return nil, errors.New("user not found")
-	}
-
-	// Generate tokens
-	accessToken, err := s.createToken(user.ID, user.Role, time.Hour*1) // 1 hour expiration
-	if err != nil {
-		return nil, errors.New("failed to create access token")
-	}
-	refreshToken, err := s.createToken(user.ID, user.Role, time.Hour*24*7) // 7 days expiration
-	if err != nil {
-		return nil, errors.New("failed to create refresh token")
-	}
-
-	return &dto.TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    3600,
-	}, nil
+	return claims, nil
 }
 
-func validateRegistration(req dto.RegisterRequest) error {
-	if strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Phone) == "" || strings.TrimSpace(req.Email) == "" || len(req.Password) < 6 {
-		return errors.New("name, phone, email, and a password of at least 6 characters are required")
-	}
-	switch req.Role {
-	case models.RoleCustomer, models.RoleTechnician, models.RoleISP:
-	default:
-		return errors.New("invalid role")
-	}
-	return nil
-}
 
 func generateOTP() (string, error) {
-	max := big.NewInt(1000000)
-	n, err := rand.Int(rand.Reader, max)
-	if err != nil {
+	buf := make([]byte, 3)
+	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%06d", n.Int64()), nil
+
+	value := int(buf[0])<<16 | int(buf[1])<<8 | int(buf[2])
+	return fmt.Sprintf("%06d", value%1000000), nil
 }
 
-// Refresh validates a refresh token and issues a new access token.
-func (s *AuthService) Refresh(ctx context.Context, req dto.RefreshTokenRequest) (*dto.TokenResponse, error) {
-	// Validate the refresh token
-	claims, err := s.validateToken(req.RefreshToken)
-	if err != nil {
-		return nil, errors.New("invalid refresh token")
+func normalizeRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "customer":
+		return "customer"
+	case "client":
+		return "customer"
+	case "isp":
+		return "isp"
+	case "technician":
+		return "technician"
+	default:
+		return strings.ToLower(strings.TrimSpace(role))
 	}
-
-	// Get user ID and role from claims
-	userID, ok := claims["sub"].(string)
-	if !ok {
-		return nil, errors.New("invalid token claims")
-	}
-	role, ok := claims["role"].(string)
-	if !ok {
-		return nil, errors.New("invalid token claims")
-	}
-
-	// Create a new access token
-	newAccessToken, err := s.createToken(userID, role, time.Hour*1)
-	if err != nil {
-		return nil, errors.New("failed to create access token")
-	}
-
-	return &dto.TokenResponse{
-		AccessToken: newAccessToken,
-		TokenType:   "Bearer",
-		ExpiresIn:   3600,
-	}, nil
-}
-
-func (s *AuthService) createToken(userID, role string, expirationTime time.Duration) (string, error) {
-	claims := &jwt.MapClaims{
-		"sub":  userID,
-		"role": role,
-		"exp":  time.Now().Add(expirationTime).Unix(),
-		"iat":  time.Now().Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.jwtSecret))
-}
-
-func (s *AuthService) validateToken(tokenString string) (jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(s.jwtSecret), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token")
-}
-
-// GetMyProfile retrieves the profile of the currently authenticated user.
-func (s *AuthService) GetMyProfile(ctx context.Context, userID string) (*dto.UserProfileResponse, error) {
-	user, err := s.UserRepo.FindByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-
-	// Map the user model to the response DTO
-	return &dto.UserProfileResponse{
-		ID:         user.ID,
-		Name:       user.Name,
-		Phone:      user.Phone,
-		Email:      user.Email,
-		Role:       user.Role,
-		IsVerified: user.IsVerified,
-		// TODO: Populate these fields once they are available in the user model
-		// Rating:       user.Rating,
-		// TotalRatings: user.TotalRatings,
-		// Joined:       user.CreatedAt.String(),
-	}, nil
-}
-
-// UpdateMyProfile updates the profile of the currently authenticated user.
-func (s *AuthService) UpdateMyProfile(ctx context.Context, userID string, req *dto.UpdateProfileRequest) error {
-	user, err := s.UserRepo.FindByID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
-	}
-
-	// Update fields if they are provided in the request
-	if req.Name != "" {
-		user.Name = req.Name
-	}
-	if req.Email != "" {
-		user.Email = req.Email
-	}
-
-	// TODO: Handle location update. This will likely involve a geospatial service.
-	// For now, we are ignoring the location field.
-
-	// Save the updated user
-	if err := s.UserRepo.UpdateUser(ctx, user); err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-
-	return nil
-}
-
-// GetMyISPProfile retrieves the profile of the currently authenticated ISP.
-func (s *AuthService) GetMyISPProfile(ctx context.Context, userID string) (*dto.ISPProfileResponse, error) {
-	user, err := s.UserRepo.FindByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-
-	// Map the user model to the response DTO
-	return &dto.ISPProfileResponse{
-		ID:         user.ID,
-		Name:       user.Name,
-		Phone:      user.Phone,
-		Email:      user.Email,
-		Role:       user.Role,
-		IsVerified: user.IsVerified,
-		// TODO: Populate these fields once they are available in the user model
-		// Rating:       user.Rating,
-		// TotalRatings: user.TotalRatings,
-		// Joined:       user.CreatedAt.String(),
-	}, nil
-}
-
-// UpdateMyISPProfile updates the profile of the currently authenticated ISP.
-func (s *AuthService) UpdateMyISPProfile(ctx context.Context, userID string, req *dto.UpdateISPProfileRequest) error {
-	user, err := s.UserRepo.FindByID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
-	}
-
-	// Update fields if they are provided in the request
-	if req.Name != "" {
-		user.Name = req.Name
-	}
-	if req.Email != "" {
-		user.Email = req.Email
-	}
-
-	// TODO: Handle location update. This will likely involve a geospatial service.
-	// For now, we are ignoring the location field.
-
-	// Save the updated user
-	if err := s.UserRepo.UpdateUser(ctx, user); err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-
-	return nil
-}
-
-// GetMyTechProfile retrieves the profile of the currently authenticated technician.
-func (s *AuthService) GetMyTechProfile(ctx context.Context, userID string) (*dto.TechProfileResponse, error) {
-	user, err := s.UserRepo.FindByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-
-	// Map the user model to the response DTO
-	return &dto.TechProfileResponse{
-		ID:         user.ID,
-		Name:       user.Name,
-		Phone:      user.Phone,
-		Email:      user.Email,
-		Role:       user.Role,
-		IsVerified: user.IsVerified,
-		// TODO: Populate these fields once they are available in the user model
-		// Rating:       user.Rating,
-		// TotalRatings: user.TotalRatings,
-		// Joined:       user.CreatedAt.String(),
-	}, nil
 }

@@ -7,26 +7,86 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"ispilolite/internal/models"
+	"ispilolite/pkg/database"
+	"time"
 )
 
-// UserRepository implements the user repository for PostgreSQL.
-type UserRepository struct {
-	db *sqlx.DB
+type userRepo struct {
+	dbReader *sql.DB
+	dbWriter *sql.DB
 }
 
-// NewUserRepository creates a new UserRepository.
-func NewUserRepository(db *sqlx.DB) *UserRepository {
-	return &UserRepository{db: db}
+func NewUserRepo() *userRepo {
+	return &userRepo{
+		dbReader: database.GetReader(),
+		dbWriter: database.GetWriter(),
+	}
 }
 
-// CreateUser creates a new user in the database.
-func (r *UserRepository) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
-	user.ID = uuid.New().String()
-	query := `INSERT INTO users (id, name, email, phone, role, password)
-              VALUES ($1, $2, $3, $4, $5, $6)
-              RETURNING created_at, updated_at`
+func (r *userRepo) CreateUser(user *models.User) error {
+	query := `
+		INSERT INTO users (id, phone, username, name, email, role, password_hash, is_verified, rating, total_ratings, joined, created_at, updated_at, isp_id, town, county)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+	`
+	_, err := r.dbWriter.Exec(
+		query,
+		user.ID,
+		user.Phone,
+		user.Username,
+		user.Name,
+		user.Email,
+		user.Role,
+		user.PasswordHash,
+		user.IsVerified,
+		user.Rating,
+		user.TotalRatings,
+		user.Joined,
+		user.CreatedAt,
+		user.UpdatedAt,
+		user.ISP_ID,
+		user.Town,
+		user.County,
+	)
+	return err
+}
 
-	err := r.db.QueryRowContext(ctx, query, user.ID, user.Name, user.Email, user.Phone, user.Role, user.Password).Scan(&user.CreatedAt, &user.UpdatedAt)
+func (r *userRepo) GetUserByUsername(username string) (*models.User, error) {
+	query := `SELECT id, phone, username, name, email, role, password_hash, is_verified, rating, total_ratings, joined, created_at, updated_at, isp_id, latitude, longitude, town, county FROM users WHERE lower(username) = lower($1)`
+	return r.scanUser(r.dbReader.QueryRow(query, username))
+}
+
+func (r *userRepo) GetUserByPhone(phone string) (*models.User, error) {
+	query := `
+		SELECT id, phone, username, name, email, role, password_hash, is_verified, rating, total_ratings, joined, created_at, updated_at, isp_id, latitude, longitude, town, county
+		FROM users
+		WHERE phone = $1
+	`
+	return r.scanUser(r.dbReader.QueryRow(query, phone))
+}
+
+func (r *userRepo) scanUser(row *sql.Row) (*models.User, error) {
+	user := &models.User{}
+	var lat, lng sql.NullFloat64
+	err := row.Scan(
+		&user.ID,
+		&user.Phone,
+		&user.Username,
+		&user.Name,
+		&user.Email,
+		&user.Role,
+		&user.PasswordHash,
+		&user.IsVerified,
+		&user.Rating,
+		&user.TotalRatings,
+		&user.Joined,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.ISP_ID,
+		&lat,
+		&lng,
+		&user.Town,
+		&user.County,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -34,33 +94,173 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *models.User) (*mo
 	return user, nil
 }
 
-// FindByPhone finds a user by their phone number.
-func (r *UserRepository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
-	var user models.User
-	query := "SELECT * FROM users WHERE phone = $1"
-	err := r.db.GetContext(ctx, &user, query, phone)
+func (r *userRepo) GetUserByID(userID string) (*models.User, error) {
+	query := `
+		SELECT id, phone, username, name, email, role, password_hash, is_verified, rating, total_ratings, joined, created_at, updated_at, isp_id, latitude, longitude, town, county
+		FROM users
+		WHERE id = $1
+	`
+	user := &models.User{}
+	var lat, lng sql.NullFloat64
+	err := r.dbReader.QueryRow(query, userID).Scan(
+		&user.ID,
+		&user.Phone,
+		&user.Username,
+		&user.Name,
+		&user.Email,
+		&user.Role,
+		&user.PasswordHash,
+		&user.IsVerified,
+		&user.Rating,
+		&user.TotalRatings,
+		&user.Joined,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.ISP_ID,
+		&lat,
+		&lng,
+		&user.Town,
+		&user.County,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return &user, nil
 }
 
-// FindByID finds a user by their ID.
-func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User, error) {
-	var user models.User
-	query := "SELECT * FROM users WHERE id = $1"
-	err := r.db.GetContext(ctx, &user, query, id)
+func (r *userRepo) UpdateUser(user *models.User) error {
+	query := `
+		UPDATE users
+		SET name = $1, email = $2, is_verified = $3, updated_at = $4, isp_id = $5, latitude = $6, longitude = $7, town = $8, county = $9
+		WHERE id = $10
+	`
+	var lat, lng sql.NullFloat64
+	if user.Location != nil {
+		lat.Float64 = user.Location.Lat
+		lat.Valid = true
+		lng.Float64 = user.Location.Lng
+		lng.Valid = true
+	}
+	_, err := r.dbWriter.Exec(
+		query,
+		user.Name,
+		user.Username,
+		user.Email,
+		user.IsVerified,
+		user.UpdatedAt,
+		user.ISP_ID,
+		lat,
+		lng,
+		user.Town,
+		user.County,
+		user.ID,
+	)
+	return err
+}
+
+func (r *userRepo) GetUsersByStatus(status string) ([]*models.User, error) {
+	query := `
+		SELECT id, phone, username, name, email, role, password_hash, is_verified, rating, total_ratings, joined, created_at, updated_at, isp_id, latitude, longitude, town, county
+		FROM users
+		WHERE status = $1
+	`
+	rows, err := r.dbReader.Query(query, status)
 	if err != nil {
 		return nil, err
 	}
-	return &user, nil
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		var lat, lng sql.NullFloat64
+		err := rows.Scan(
+			&user.ID,
+			&user.Phone,
+			&user.Username,
+			&user.Name,
+			&user.Email,
+			&user.Role,
+			&user.PasswordHash,
+			&user.IsVerified,
+			&user.Rating,
+			&user.TotalRatings,
+			&user.Joined,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+			&user.ISP_ID,
+			&lat,
+			&lng,
+			&user.Town,
+			&user.County,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if lat.Valid && lng.Valid {
+			user.Location = &models.Coordinates{Lat: lat.Float64, Lng: lng.Float64}
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
 }
 
-// UpdateUser updates the mutable profile fields for an existing user.
-func (r *UserRepository) UpdateUser(ctx context.Context, user *models.User) error {
-	if user == nil {
-		return sql.ErrNoRows
+func (r *userRepo) GetTechniciansByISPID(ispID string) ([]*models.User, error) {
+	query := `
+		SELECT id, phone, username, name, email, role, password_hash, is_verified, rating, total_ratings, joined, created_at, updated_at, isp_id, latitude, longitude, town, county
+		FROM users
+		WHERE isp_id = $1 AND role = 'technician'
+	`
+
+	rows, err := r.dbReader.Query(query, ispID)
+	if err != nil {
+		return nil, err
 	}
-	_, err := r.db.ExecContext(ctx, `UPDATE users SET name=$1, email=$2, phone=$3, role=$4, is_verified=$5, updated_at=NOW() WHERE id=$6`, user.Name, user.Email, user.Phone, user.Role, user.IsVerified, user.ID)
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		var lat, lng sql.NullFloat64
+		err := rows.Scan(
+			&user.ID,
+			&user.Phone,
+			&user.Username,
+			&user.Name,
+			&user.Email,
+			&user.Role,
+			&user.PasswordHash,
+			&user.IsVerified,
+			&user.Rating,
+			&user.TotalRatings,
+			&user.Joined,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+			&user.ISP_ID,
+			&lat,
+			&lng,
+			&user.Town,
+			&user.County,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if lat.Valid && lng.Valid {
+			user.Location = &models.Coordinates{Lat: lat.Float64, Lng: lng.Float64}
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+func (r *userRepo) RequestDeleteUser(userID string, status string) error {
+	query := `
+		UPDATE users
+		SET status = $1, updated_at = $2
+		WHERE id = $3
+	`
+	_, err := r.dbWriter.Exec(query, status, time.Now().UTC(), userID)
 	return err
 }

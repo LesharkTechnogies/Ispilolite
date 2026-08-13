@@ -10,68 +10,76 @@ es/job"
 )
 
 func main() {
-    // Load configuration
-    viper.SetConfigName("config")
-    viper.AddConfigPath("./config")
-    if err := viper.ReadInConfig(); err != nil {
-        log.Fatalf("Error reading config file, %s", err)
-    }
+	configPath := getenv("CONFIG_PATH", "config/config.yaml")
+	if err := database.InitDB(configPath); err != nil {
+		log.Fatalf("database startup check failed: %v", err)
+	}
+	if err := database.InitRedis(configPath); err != nil {
+		log.Fatalf("redis startup check failed: %v", err)
+	}
 
-    // Initialize database connections
-    psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-        viper.GetString("database.host"),
-        viper.GetInt("database.port"),
-        viper.GetString("database.user"),
-        viper.GetString("database.password"),
-        viper.GetString("database.dbname"))
-    
-    db, err := database.NewPostgresConnection(psqlInfo)
-    if err != nil {
-        log.Fatalf("Could not connect to the database: %v", err)
-    }
+	secret := getenv("JWT_SECRET", "ispilolite-dev-secret")
+	issuer := getenv("JWT_ISSUER", "ispilolite")
+	middleware.InitAuth(secret, issuer)
 
-    redisAddr := fmt.Sprintf("%s:%d", viper.GetString("redis.host"), viper.GetInt("redis.port"))
-    rdb, err := database.NewRedisConnection(redisAddr)
-    if err != nil {
-        log.Fatalf("Could not connect to redis: %v", err)
-    }
+	// Enforce the logout blocklist inside the auth middleware. The auth service
+	// owns the revocation store (Redis), so route middleware delegates to it.
+	revocationService := authsvc.NewAuthService(postgres.NewUserRepo(), redis.NewCacheRepo())
+	middleware.SetRevocationChecker(revocationService.IsTokenRevoked)
 
-    // Initialize Elasticsearch client
-    esClient, err := elastic.NewClient(
-        elastic.SetURL(viper.GetString("elasticsearch.url")),
-        elastic.SetSniff(false), // Set to true in production if your cluster supports it
-    )
-    if err != nil {
-        log.Fatalf("Could not connect to elasticsearch: %v", err)
-    }
+	router := routes.SetupRouter()
 
-    // Initialize repositories
-    userRepo := postgresrepo.NewUserRepository(db)
-    otpRepo := redisrepo.NewOTPRepository(rdb)
-    jobRepo := postgresrepo.NewJobRepository(db)
-	cachedJobRepo := redisrepo.NewCachedJobRepository(jobRepo, rdb)
+	port := getenvInt("PORT", 8001)
+	srv := &http.Server{
+		Addr:              ":" + strconv.Itoa(port),
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
-	// Initialize search repositories
-	esSearchRepo := elasticsearch.NewESRepository(esClient, log.Default())
-	pgSearchRepo := postgresrepo.NewPostgresRepository(db)
+	go func() {
+		log.Printf("ispilolite api listening on port %d", port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server failed: %v", err)
+		}
+	}()
 
-    // Initialize services
-    jwtSecret := viper.GetString("jwt.secret")
-    authSvc := authservice.NewAuthService(userRepo, otpRepo, jwtSecret)
-    jobSvc := job.NewJobService(cachedJobRepo)
-	searchSvc := search.NewService(esSearchRepo, pgSearchRepo, search.DefaultServiceConfig(), log.Default())
+	// Graceful shutdown on SIGINT/SIGTERM so in-flight requests drain cleanly
+	// during rolling deploys across replicas.
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
 
-    // Initialize handlers
-    authHandler := handlers.NewAuthHandler(authSvc)
-	searchHandler := handlers.NewSearchHandler(searchSvc)
+	log.Println("shutting down api...")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 
-    // Initialize router
-    router := routes.SetupRouter(authHandler, jobSvc, searchHandler)
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("graceful shutdown failed: %v", err)
+	}
+	if err := database.CloseRedis(); err != nil {
+		log.Printf("redis shutdown failed: %v", err)
+	}
+	if err := database.CloseDB(); err != nil {
+		log.Printf("database shutdown failed: %v", err)
+	}
+	log.Println("api stopped")
+}
 
-    // Start server
-    port := viper.GetInt("services.auth.port")
-    log.Printf("Auth service starting on port %d", port)
-    if err := http.ListenAndServe(fmt.Sprintf(":%d", port), router); err != nil {
-        log.Fatalf("Failed to start server: %v", err)
-    }
+func getenv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func getenvInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return fallback
 }

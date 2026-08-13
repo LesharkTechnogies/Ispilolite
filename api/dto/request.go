@@ -7,6 +7,12 @@ import (
 )
 
 type RegisterRequest struct {
+	Phone    string `json:"phone" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Role     string `json:"role" binding:"required,oneof=customer technician isp"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password" binding:"required,min=6"`
     Phone    string `json:"phone" binding:"required"`
     Name     string `json:"name" binding:"required"`
     Email    string `json:"email" binding:"required,email"`
@@ -15,8 +21,16 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
+	Phone    string `json:"phone" binding:"required"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
     Phone string `json:"phone" binding:"required"`
 }
+
+type ISPProfileRequest struct { Name string `json:"name"`; Description string `json:"description"`; LogoURL string `json:"logo_url"`; CustomerCareNumber string `json:"customer_care_number"`; AvgResponseTime int `json:"avg_response_time"`; AvgPrice float64 `json:"avg_price"` }
+type ISPPackageRequest struct { Name string `json:"name"`; Speed string `json:"speed"`; Price float64 `json:"price"`; Description string `json:"description"` }
+type InstallationStatusRequest struct { Status string `json:"status"`; TechnicianID string `json:"technician_id,omitempty"` }
+type TechnicianInviteRequest struct { Phone string `json:"phone"`; Name string `json:"name"`; Email string `json:"email"`; Username string `json:"username"`; Password string `json:"password"` }
 
 type VerifyOTPRequest struct {
     UserID string `json:"user_id" binding:"required"`
