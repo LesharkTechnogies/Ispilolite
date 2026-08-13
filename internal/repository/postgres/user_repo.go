@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+func (r *userRepo) CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error { _,err:=r.dbWriter.Exec(`INSERT INTO auth_sessions (id,user_id,token_hash,expires_at,created_at,last_used_at) VALUES ($1,$2,$3,$4,now(),now())`,sessionID,userID,tokenHash,expiresAt);return err }
+func (r *userRepo) RefreshSessionActive(sessionID, tokenHash string) (bool,error) { var ok bool;err:=r.dbWriter.QueryRow(`UPDATE auth_sessions SET last_used_at=now() WHERE id=$1 AND token_hash=$2 AND revoked_at IS NULL AND expires_at>now() RETURNING true`,sessionID,tokenHash).Scan(&ok);if err==sql.ErrNoRows{return false,nil};return ok,err }
+
 type userRepo struct {
 	dbReader *sql.DB
 	dbWriter *sql.DB

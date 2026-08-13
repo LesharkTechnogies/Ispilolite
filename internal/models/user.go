@@ -2,6 +2,11 @@ package models
 
 import "time"
 
+type Coordinates struct {
+	Lat float64 `json:"lat" db:"latitude"`
+	Lng float64 `json:"lng" db:"longitude"`
+}
+
 // Role constants for platform users.
 const (
 	RoleCustomer   = "customer"

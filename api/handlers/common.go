@@ -37,6 +37,11 @@ func userIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+func userRoleFromContext(ctx context.Context) string {
+	if value, ok := ctx.Value("userRole").(string); ok { return value }
+	return ""
+}
+
 func respondWithJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

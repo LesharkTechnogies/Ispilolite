@@ -37,6 +37,8 @@ func (r *PostgresRepository) Healthy(ctx context.Context) bool {
 
 // SearchISPs matches by name/coverage/area using ILIKE + trigram ranking.
 func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams) (*Page, error) {
+	p, place, err := r.expandLearnedPlace(ctx, p)
+	if err != nil { return nil, err }
 	var (
 		where []string
 		args  []interface{}
@@ -52,11 +54,15 @@ func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams)
 	if p.County != "" {
 		add("county ILIKE $%d", p.County)
 	}
-	if p.SubCounty != "" {
+	if p.SubCounty != "" && !p.LocationResolved {
 		add("sub_county ILIKE $%d", p.SubCounty)
 	}
-	if p.Village != "" {
-		add("village ILIKE $%d", p.Village)
+	if p.Village != "" && !p.LocationResolved {
+		args = append(args, p.Village)
+		villageIndex := len(args)
+		args = append(args, p.SubCounty)
+		townIndex := len(args)
+		where = append(where, fmt.Sprintf("(village ILIKE $%d OR ($%d <> '' AND sub_county ILIKE $%d) OR EXISTS (SELECT 1 FROM isp_coverage_locations ic JOIN locations l ON l.id=ic.location_id WHERE ic.isp_id=isps.id AND (l.name ILIKE $%d OR ($%d <> '' AND l.name ILIKE $%d))))", villageIndex, townIndex, townIndex, villageIndex, townIndex, townIndex))
 	}
 	if p.MinRating > 0 {
 		add("rating >= $%d", p.MinRating)
@@ -69,16 +75,21 @@ func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams)
 	if len(where) > 0 {
 		clause = strings.Join(where, " AND ")
 	}
+	countArgs := append([]interface{}{}, args...)
 
 	// Rank by trigram similarity to the query when present, else by rating.
-	orderScore := "rating"
+	orderScore := "rating DESC, review_count DESC"
 	if p.Query != "" {
 		args = append(args, p.Query)
-		orderScore = fmt.Sprintf("similarity(name, $%d) DESC, rating", len(args))
+		orderScore = fmt.Sprintf("similarity(name, $%d) DESC, rating DESC", len(args))
+	}
+	if place != nil && p.Sort != "popular" {
+		args = append(args, place.Name, place.SubCounty)
+		orderScore = fmt.Sprintf("CASE WHEN village ILIKE $%d THEN 3 WHEN $%d <> '' AND sub_county ILIKE $%d THEN 2 ELSE 1 END DESC, rating DESC", len(args)-1, len(args), len(args))
 	}
 
 	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM isps WHERE %s`, clause)
-	total, err := r.count(ctx, countSQL, args...)
+	total, err := r.count(ctx, countSQL, countArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +103,7 @@ func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams)
 		       rating, review_count, is_active, created_at
 		FROM isps
 		WHERE %s
-		ORDER BY %s DESC
+		ORDER BY %s
 		LIMIT $%d OFFSET $%d`,
 		clause, orderScore, len(pageArgs)-1, len(pageArgs))
 
@@ -118,6 +129,8 @@ func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams)
 // SearchTechnicians matches technicians by name/role/skills/area. Roles and
 // skills are stored in join tables (technician_roles, technician_skills).
 func (r *PostgresRepository) SearchTechnicians(ctx context.Context, p dto.SearchParams) (*Page, error) {
+	p, place, err := r.expandLearnedPlace(ctx, p)
+	if err != nil { return nil, err }
 	var (
 		where []string
 		args  []interface{}
@@ -133,11 +146,15 @@ func (r *PostgresRepository) SearchTechnicians(ctx context.Context, p dto.Search
 	if p.County != "" {
 		add("t.county ILIKE $%d", p.County)
 	}
-	if p.SubCounty != "" {
+	if p.SubCounty != "" && !p.LocationResolved {
 		add("t.sub_county ILIKE $%d", p.SubCounty)
 	}
-	if p.Village != "" {
-		add("t.village ILIKE $%d", p.Village)
+	if p.Village != "" && !p.LocationResolved {
+		args = append(args, p.Village)
+		villageIndex := len(args)
+		args = append(args, p.SubCounty)
+		townIndex := len(args)
+		where = append(where, fmt.Sprintf("(t.village ILIKE $%d OR ($%d <> '' AND t.sub_county ILIKE $%d) OR t.location_id IN (SELECT id FROM locations WHERE name ILIKE $%d OR ($%d <> '' AND name ILIKE $%d)))", villageIndex, townIndex, townIndex, villageIndex, townIndex, townIndex))
 	}
 	if p.MinRating > 0 {
 		add("t.rating >= $%d", p.MinRating)
@@ -164,6 +181,11 @@ func (r *PostgresRepository) SearchTechnicians(ctx context.Context, p dto.Search
 	}
 
 	pageArgs := append([]interface{}{}, args...)
+	orderBy := "t.rating DESC, t.jobs_done DESC"
+	if place != nil && p.Sort != "popular" {
+		pageArgs = append(pageArgs, place.Name, place.SubCounty)
+		orderBy = fmt.Sprintf("CASE WHEN t.village ILIKE $%d THEN 3 WHEN $%d <> '' AND t.sub_county ILIKE $%d THEN 2 ELSE 1 END DESC, t.rating DESC, t.jobs_done DESC", len(pageArgs)-1, len(pageArgs), len(pageArgs))
+	}
 	pageArgs = append(pageArgs, p.PageSize, p.Offset())
 	listSQL := fmt.Sprintf(`
 		SELECT t.id, t.user_id, t.name, COALESCE(t.avatar_url,''), t.isp_id, t.isp_name,
@@ -175,9 +197,9 @@ func (r *PostgresRepository) SearchTechnicians(ctx context.Context, p dto.Search
 		LEFT JOIN technician_skills ts ON ts.technician_id = t.id
 		WHERE %s
 		GROUP BY t.id
-		ORDER BY t.rating DESC, t.jobs_done DESC
+		ORDER BY %s
 		LIMIT $%d OFFSET $%d`,
-		clause, len(pageArgs)-1, len(pageArgs))
+		clause, orderBy, len(pageArgs)-1, len(pageArgs))
 
 	items, err := r.scanTechnicians(ctx, listSQL, pageArgs...)
 	if err != nil {
@@ -282,7 +304,7 @@ func (r *PostgresRepository) SearchLocations(ctx context.Context, p dto.SearchPa
 		SELECT id, name, type, county, sub_county, ward, created_at
 		FROM locations
 		WHERE %s
-		ORDER BY name ASC
+		ORDER BY popularity_score DESC, name ASC
 		LIMIT $%d OFFSET $%d`,
 		clause, len(pageArgs)-1, len(pageArgs))
 

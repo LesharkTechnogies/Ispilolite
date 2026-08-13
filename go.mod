@@ -12,6 +12,9 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
+	github.com/olivere/elastic/v7 v7.0.32
+	github.com/prometheus/client_golang v1.20.5
+	github.com/rabbitmq/amqp091-go v1.10.0
 	golang.org/x/crypto v0.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )

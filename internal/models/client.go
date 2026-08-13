@@ -8,8 +8,8 @@ type Client struct {
 	ID        string    `db:"id"`
 	UserID    string    `db:"user_id"`
 	Location  string    `db:"location"`
-	phone     string    `db:"phone"`
-	email     string    `db:"email"`
+	Phone     string    `json:"phone" db:"phone"`
+	Email     string    `json:"email" db:"email"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
 	// Future fields could include:

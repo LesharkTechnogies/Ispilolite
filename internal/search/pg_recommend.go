@@ -24,6 +24,9 @@ import (
 // RecommendISPs ranks ISPs by rating + popularity, boosting area fit. County,
 // when supplied, is a hard filter; finer areas are soft ORDER BY bonuses.
 func (r *PostgresRepository) RecommendISPs(ctx context.Context, p dto.RecommendParams) (*Page, error) {
+	searchParams, place, err := r.expandLearnedPlace(ctx, p.SearchParams)
+	if err != nil { return nil, err }
+	p.SearchParams = searchParams
 	var (
 		where []string
 		args  []interface{}
@@ -51,14 +54,19 @@ func (r *PostgresRepository) RecommendISPs(ctx context.Context, p dto.RecommendP
 		clause = strings.Join(where, " AND ")
 	}
 
-	// Scoring args: village, sub_county (soft area fit), then the row limit.
+	// Scoring args: village, town/sub-county (soft area fit), then the row limit.
 	args = append(args, p.Village)
 	vIdx := len(args)
 	args = append(args, p.SubCounty)
 	sIdx := len(args)
+
+	placeScore := "0"
+	if place != nil {
+		args = append(args, place.Name, place.SubCounty)
+		placeScore = fmt.Sprintf("+ CASE WHEN village ILIKE $%d THEN 4 ELSE 0 END + CASE WHEN $%d <> '' AND sub_county ILIKE $%d THEN 2 ELSE 0 END", len(args)-1, len(args), len(args))
+	}
 	args = append(args, recSize(p.PageSize))
 	limIdx := len(args)
-
 	q := fmt.Sprintf(`
 		SELECT id, name, description, COALESCE(avatar_url,''), county, sub_county, village,
 		       rating, review_count, is_active, created_at
@@ -69,8 +77,9 @@ func (r *PostgresRepository) RecommendISPs(ctx context.Context, p dto.RecommendP
 			+ ln(2 + review_count)
 			+ CASE WHEN $%d <> '' AND village ILIKE $%d THEN 3 ELSE 0 END
 			+ CASE WHEN $%d <> '' AND sub_county ILIKE $%d THEN 2 ELSE 0 END
+			%s
 		) DESC, rating DESC
-		LIMIT $%d`, clause, vIdx, vIdx, sIdx, sIdx, limIdx)
+		LIMIT $%d`, clause, vIdx, vIdx, sIdx, sIdx, placeScore, limIdx)
 
 	return r.scanISPPage(ctx, q, args...)
 }
@@ -170,6 +179,9 @@ const technicianListSelect = `
 // rating + jobs completed + proximity (when a point is supplied). County is a
 // hard filter; skills/role/area are soft ranking signals.
 func (r *PostgresRepository) RecommendTechnicians(ctx context.Context, p dto.RecommendParams) (*Page, error) {
+	searchParams, place, err := r.expandLearnedPlace(ctx, p.SearchParams)
+	if err != nil { return nil, err }
+	p.SearchParams = searchParams
 	var (
 		where []string
 		args  []interface{}
@@ -237,6 +249,11 @@ func (r *PostgresRepository) RecommendTechnicians(ctx context.Context, p dto.Rec
 			"CASE WHEN t.lat IS NOT NULL AND t.lon IS NOT NULL THEN 6.0 / (1.0 + (earth_distance(ll_to_earth($%d,$%d), ll_to_earth(t.lat, t.lon)) / 1000.0) / $%d) ELSE 0 END",
 			latIdx, lonIdx, scaleIdx)
 	}
+	placeTerm := "0"
+	if place != nil {
+		args = append(args, place.Name, place.SubCounty)
+		placeTerm = fmt.Sprintf("CASE WHEN t.village ILIKE $%d THEN 4 WHEN $%d <> '' AND t.sub_county ILIKE $%d THEN 2 ELSE 0 END", len(args)-1, len(args), len(args))
+	}
 
 	clause := "TRUE"
 	if len(where) > 0 {
@@ -249,9 +266,9 @@ func (r *PostgresRepository) RecommendTechnicians(ctx context.Context, p dto.Rec
 	q := fmt.Sprintf(`%s
 		WHERE %s
 		GROUP BY t.id
-		ORDER BY (t.rating * 2.0 + ln(2 + t.jobs_done) + %s + %s + %s) DESC, t.rating DESC
+		ORDER BY (t.rating * 2.0 + ln(2 + t.jobs_done) + %s + %s + %s + %s) DESC, t.rating DESC
 		LIMIT $%d`,
-		technicianListSelect, clause, skillTerm, roleTerm, proximityTerm, limIdx)
+		technicianListSelect, clause, skillTerm, roleTerm, proximityTerm, placeTerm, limIdx)
 
 	return r.techPage(ctx, q, args...)
 }

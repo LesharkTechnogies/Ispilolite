@@ -15,6 +15,8 @@ type UserRepository interface {
 	GetUsersByStatus(status string) ([]*models.User, error)
 	RequestDeleteUser(userID string, status string) error
 	SanitizeAndDeleteUser(userID string) error
+	CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error
+	RefreshSessionActive(sessionID, tokenHash string) (bool, error)
 }
 
 type ISPRepository interface {
@@ -61,9 +63,15 @@ type TechnicianRepository interface {
 type JobRequestRepository interface {
 	CreateJobRequest(req *models.JobRequest) error
 	GetJobRequestByID(id string) (*models.JobRequest, error)
-	GetJobRequestsByTechnician(technicianID string, status string) ([]*models.JobRequest, error)
-	GetJobRequestsByClient(clientID string) ([]*models.JobRequest, error)
-	UpdateJobRequestStatus(id string, status string) error
+	ListForCustomer(customerID string, status string) ([]*models.JobRequest, error)
+	ListForTechnician(technicianID string, status string) ([]*models.JobRequest, error)
+	ListAvailable(county, town, serviceType string) ([]*models.JobRequest, error)
+	ApplyToJob(application *models.JobApplication) error
+	ListApplications(requestID, customerID string) ([]*models.JobApplication, error)
+	AssignApplication(requestID, customerID, applicationID string) (*models.JobRequest, error)
+	SetAvailability(requestID, customerID string, available bool) error
+	DeleteJobRequest(requestID, customerID string) error
+	UpdateJobStatus(requestID, actorID, status string) error
 }
 
 type LocationRepository interface {
@@ -88,6 +96,34 @@ type LocationRepository interface {
 	// UpdateLocationStats persists a recomputed submission count, popularity,
 	// verification flag and status after a new submission.
 	UpdateLocationStats(id string, submissionCount int, popularityScore float64, isVerified bool, status string) error
+	ListLocationsByCounty(county string, limit int) ([]*models.Location, error)
+}
+
+type CoverageRepository interface {
+	ListISPCoverage(ispID, county string) ([]*models.Location, error)
+	AddISPCoverage(ispID, locationID string) error
+	ListCoverageRecommendations(ispID, county string, limit int) ([]*models.Location, error)
+}
+
+type NotificationRepository interface {
+	CreateNotification(notification *models.Notification) error
+	ListNotifications(userID string, unreadOnly bool, limit int) ([]*models.Notification, error)
+	MarkNotificationRead(userID, notificationID string) error
+}
+
+type QuotationRepository interface {
+	NextQuotationNumber(at time.Time) (string, error)
+	PublicCodeExists(code string) (bool, error)
+	FinalizeQuotation(quotation *models.Quotation) error
+	GetQuotationByID(id string) (*models.Quotation, error)
+	GetQuotationByPublicCode(code string) (*models.Quotation, error)
+	ListQuotations(userID, role, status string, limit int) ([]*models.Quotation, error)
+	UpdateQuotationStatus(id, customerID, status string) error
+	GetUnit(unitID, issuerID string) (*models.QuotationUnit, error)
+	ListUnits(issuerID, query string, limit int) ([]*models.QuotationUnit, error)
+	CreateUnit(unit *models.QuotationUnit, issuerID string) error
+	GetTaxRate(id string) (*models.TaxRate, error)
+	CanQuoteRequest(requestID, issuerID, customerID string) (bool, error)
 }
 
 type CacheRepository interface {

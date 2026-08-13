@@ -12,10 +12,10 @@
 //
 //	SEARCH_ADDR        listen address                 (default ":8081")
 //	ES_ADDRESSES       comma-separated ES node URLs    (default "http://localhost:9200")
-//	ES_USERNAME        ES basic-auth username          (optional)
+//	ES_USERNAME        ES basic-auth username         /pass, optional)
+//	DATABASE_URL       Postgres DSN for the fallback   (optional)
 //	ES_PASSWORD        ES basic-auth password          (optional)
-//	ES_API_KEY         ES API key (preferred over user/pass, optional)
-//	DATABASE_URL       Postgres DSN for the fallback   (optional but recommended)
+//	ES_API_KEY         ES API key (preferred over user (optional but recommended)
 //	ES_ENSURE_INDICES  "true" to create missing indices on boot (default "true")
 //
 // Neither Elasticsearch nor Postgres is required to be reachable at startup:
@@ -40,6 +40,7 @@ import (
 
 	"ispilolite/api/searchapi"
 	"ispilolite/internal/search"
+	"ispilolite/pkg/monitoring"
 )
 
 func main() {
@@ -120,6 +121,7 @@ func main() {
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	router.GET("/metrics", gin.WrapH(monitoring.Handler()))
 
 	apiV1 := router.Group("/api/v1")
 	searchapi.NewHandler(svc).Register(apiV1)
@@ -127,7 +129,7 @@ func main() {
 	addr := env("SEARCH_ADDR", ":8081")
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           router,
+		Handler:           monitoring.Middleware("search", router),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -56,6 +56,22 @@ func (h *TechnicianHandler) GetJobs(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"requests": jobs}})
 }
 
+func (h *TechnicianHandler) GetAvailableJobs(w http.ResponseWriter, r *http.Request) {
+	jobs, err := h.jobRequestService.ListAvailable(r.URL.Query().Get("county"), r.URL.Query().Get("town"), r.URL.Query().Get("service_type"))
+	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to get available jobs"); return }
+	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: jobs})
+}
+
+func (h *TechnicianHandler) ApplyToJob(w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r.URL.Path, "/api/v1/jobs/")
+	id = strings.TrimSuffix(id, "/apply")
+	var req dto.JobApplicationRequest
+	if id == "" || decodeJSON(w, r, &req) != nil { respondWithError(w, http.StatusBadRequest, "invalid application"); return }
+	role, _ := r.Context().Value("userRole").(string)
+	if err := h.jobRequestService.Apply(userIDFromContext(r.Context()), role, id, req.Message, req.ProposedPrice); err != nil { respondWithError(w, http.StatusConflict, "job is unavailable"); return }
+	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Message: "application submitted"})
+}
+
 // UpdateJobStatus updates the status of a job.
 func (h *TechnicianHandler) UpdateJobStatus(w http.ResponseWriter, r *http.Request) {
 	requestID := pathParam(r.URL.Path, "/api/v1/jobs/")
@@ -72,7 +88,7 @@ func (h *TechnicianHandler) CreateJobRequest(w http.ResponseWriter, r *http.Requ
 	if technicianID == "" || decodeJSON(w, r, &request) != nil || request.Budget < 0 { respondWithError(w, http.StatusBadRequest, "invalid request payload"); return }
 	var preferredDate *time.Time
 	if request.PreferredDate != "" { parsed, err := time.Parse(time.RFC3339, request.PreferredDate); if err != nil { respondWithError(w, http.StatusBadRequest, "preferred_date must be RFC3339"); return }; preferredDate = &parsed }
-	job, err := h.jobRequestService.Create(userIDFromContext(r.Context()), &models.JobRequest{TechnicianID: technicianID, ServiceType: request.ServiceType, Description: request.Description, Town: request.Town, County: request.County, Budget: request.Budget, PreferredDate: preferredDate})
+	job, err := h.jobRequestService.Create(userIDFromContext(r.Context()), &models.JobRequest{RequestType:"technician_service", Mode:"direct", TechnicianID: technicianID, ServiceType: request.ServiceType, Description: request.Description, Town: request.Town, County: request.County, Budget: request.Budget, PreferredDate: preferredDate})
 	if err != nil { h.respondJobRequestError(w, err); return }
 	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Data: job})
 }

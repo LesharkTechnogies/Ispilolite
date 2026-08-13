@@ -12,6 +12,7 @@ import (
 	"ispilolite/internal/repository/postgres"
 	"ispilolite/internal/repository/redis"
 	authsvc "ispilolite/internal/services/auth"
+	"ispilolite/internal/services/coverage"
 	"ispilolite/internal/services/installation"
 	"ispilolite/internal/services/isp"
 	"ispilolite/internal/services/user"
@@ -24,6 +25,7 @@ type ISPEndpointsHandler struct {
 	installationService *installation.InstallationService
 	userService         *user.UserService
 	authService         *authsvc.AuthService
+	coverageService     *coverage.Service
 }
 
 // NewISPEndpointsHandler creates a new ISPEndpointsHandler.
@@ -35,13 +37,47 @@ func NewISPEndpointsHandler() *ISPEndpointsHandler {
 	userRepo := postgres.NewUserRepo()
 	userService := user.NewUserService(userRepo)
 	authService := authsvc.NewAuthService(userRepo, redis.NewCacheRepo())
+	coverageService := coverage.NewService(postgres.NewCoverageRepository(), postgres.NewNotificationRepository())
 
 	return &ISPEndpointsHandler{
 		ispService:          ispService,
 		installationService: installationService,
 		userService:         userService,
 		authService:         authService,
+		coverageService:     coverageService,
 	}
+}
+
+func (h *ISPEndpointsHandler) GetCoverageAreas(w http.ResponseWriter, r *http.Request) {
+	areas, err := h.coverageService.List(userIDFromContext(r.Context()), r.URL.Query().Get("county"))
+	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to list coverage areas"); return }
+	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"areas": areas}})
+}
+
+func (h *ISPEndpointsHandler) AddCoverageArea(w http.ResponseWriter, r *http.Request) {
+	var req dto.CoverageRequest
+	if decodeJSON(w, r, &req) != nil || strings.TrimSpace(req.LocationID) == "" { respondWithError(w, http.StatusBadRequest, "location_id is required"); return }
+	if err := h.coverageService.Add(userIDFromContext(r.Context()), req.LocationID); err != nil { respondWithError(w, http.StatusInternalServerError, "failed to add coverage area"); return }
+	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Message: "coverage area added"})
+}
+
+func (h *ISPEndpointsHandler) GetCoverageRecommendations(w http.ResponseWriter, r *http.Request) {
+	places, err := h.coverageService.Recommendations(userIDFromContext(r.Context()), r.URL.Query().Get("county"), 10)
+	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to create coverage recommendations"); return }
+	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"recommendations": places}})
+}
+
+func (h *ISPEndpointsHandler) GetNotifications(w http.ResponseWriter, r *http.Request) {
+	items, err := h.coverageService.Notifications(userIDFromContext(r.Context()), r.URL.Query().Get("unread") == "true", 20)
+	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to list notifications"); return }
+	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: items})
+}
+
+func (h *ISPEndpointsHandler) ReadNotification(w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r.URL.Path, "/api/v1/my/notifications/")
+	if id == "" { respondWithError(w, http.StatusBadRequest, "notification id is required"); return }
+	if err := h.coverageService.MarkRead(userIDFromContext(r.Context()), id); err != nil { respondWithError(w, http.StatusNotFound, "notification not found"); return }
+	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "notification marked as read"})
 }
 
 // GetProfile returns the ISP's profile.

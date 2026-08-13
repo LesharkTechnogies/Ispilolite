@@ -14,6 +14,7 @@ type TechnicianSearchParams struct {
 	Radius   int      `json:"radius"` // in km
 	County   string   `json:"county"`
 	Village  string   `json:"village"`
+	Sort     string   `json:"sort"`
 	Skills   []string `json:"skills"`
 	Roles    []string `json:"roles"`
 	Page     int      `json:"page"`
@@ -28,6 +29,7 @@ func ParseTechnicianSearchParams(r *http.Request) TechnicianSearchParams {
 		Query:    strings.TrimSpace(q.Get("q")),
 		County:   strings.TrimSpace(q.Get("county")),
 		Village:  strings.TrimSpace(q.Get("village")),
+		Sort:     strings.ToLower(strings.TrimSpace(q.Get("sort"))),
 		Page:     parseInt(q.Get("page"), defaultPage),
 		PageSize: parseInt(firstQueryValue(q.Get("page_size"), q.Get("limit")), defaultPageSize),
 	}
@@ -59,6 +61,7 @@ func (p TechnicianSearchParams) ToSearchParams() SearchParams {
 		Query:      p.Query,
 		County:     p.County,
 		Village:    p.Village,
+		Sort:       p.Sort,
 		Page:       p.Page,
 		PageSize:   p.PageSize,
 		OnlyActive: true,

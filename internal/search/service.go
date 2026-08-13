@@ -3,9 +3,11 @@ package search
 import (
 	"context"
 	"log"
+	"strconv"
 	"time"
 
 	"ispilolite/api/dto"
+	"ispilolite/pkg/monitoring"
 )
 
 // Source labels used in SearchMeta.Source.
@@ -105,6 +107,7 @@ func (s *Service) envelope(p *Page, source, query string, page, pageSize int, st
 	if p == nil {
 		p = &Page{Items: []interface{}{}}
 	}
+	monitoring.SearchRequests.WithLabelValues(source, strconv.FormatBool(degraded)).Inc()
 	return dto.SearchResult{
 		Items:       p.Items,
 		Suggestions: p.Suggestions,
@@ -128,16 +131,28 @@ func (s *Service) envelope(p *Page, source, query string, page, pageSize int, st
 
 // SearchISPs backs GET /search/isp and /search/isp/{county}.
 func (s *Service) SearchISPs(ctx context.Context, p dto.SearchParams) dto.SearchResult {
-	return s.run(ctx, p.Query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
+	query := p.Query
+	p = s.resolveLocation(ctx, p)
+	return s.run(ctx, query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
 		return repo.SearchISPs(ctx, p)
 	})
 }
 
 // SearchTechnicians backs GET /search/tech and /search/role.
 func (s *Service) SearchTechnicians(ctx context.Context, p dto.SearchParams) dto.SearchResult {
-	return s.run(ctx, p.Query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
+	query := p.Query
+	p = s.resolveLocation(ctx, p)
+	return s.run(ctx, query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
 		return repo.SearchTechnicians(ctx, p)
 	})
+}
+
+func (s *Service) resolveLocation(ctx context.Context, p dto.SearchParams) dto.SearchParams {
+	postgres, ok := s.fallback.(*PostgresRepository)
+	if !ok || (p.Query == "" && p.Village == "") { return p }
+	resolved, _, err := postgres.expandLearnedPlace(ctx, p)
+	if err != nil { s.logger.Printf("search: learned location resolution failed: %v", err); return p }
+	return resolved
 }
 
 // SearchTechniciansNear backs GET /search/tech/near.

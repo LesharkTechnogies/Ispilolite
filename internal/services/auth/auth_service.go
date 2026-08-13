@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -237,7 +238,10 @@ func (s *AuthService) GenerateAccessToken(user *models.User) (string, int, error
 // GenerateRefreshToken returns a signed refresh token.
 func (s *AuthService) GenerateRefreshToken(user *models.User) (string, error) {
 	token, _, err := s.generateToken(user, s.refreshTTL, "refresh")
-	return token, err
+	if err != nil { return "", err }
+	claims, err := s.parseToken(token); if err != nil { return "", err }
+	if err := s.userRepo.CreateRefreshSession(claims.ID, user.ID, tokenHash(token), time.Unix(claims.Expires, 0)); err != nil { return "", err }
+	return token, nil
 }
 
 // RefreshAccessToken swaps a valid refresh token for a new access token.
@@ -250,6 +254,8 @@ func (s *AuthService) RefreshAccessToken(refreshToken string) (string, int, erro
 	if claims.TokenUse != "refresh" {
 		return "", 0, ErrInvalidToken
 	}
+	active, err := s.userRepo.RefreshSessionActive(claims.ID, tokenHash(refreshToken))
+	if err != nil || !active { return "", 0, ErrInvalidToken }
 
 	user, err := s.GetUserByID(claims.UserID)
 	if err != nil {
@@ -258,6 +264,8 @@ func (s *AuthService) RefreshAccessToken(refreshToken string) (string, int, erro
 
 	return s.GenerateAccessToken(user)
 }
+
+func tokenHash(token string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.TrimSpace(token)))) }
 
 // Logout revokes a token until its natural expiry.
 func (s *AuthService) Logout(token string) {

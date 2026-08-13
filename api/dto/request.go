@@ -46,6 +46,62 @@ type LocationDTO struct {
 	Lng float64 `json:"lng"`
 }
 
+type NotificationReadRequest struct {
+	Read bool `json:"read"`
+}
+
+type LocationSubmitRequest struct {
+	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
+	ParentID string `json:"parent_id,omitempty"`
+	County string `json:"county"`
+	Latitude float64 `json:"lat"`
+	Longitude float64 `json:"lng"`
+}
+
+type CoverageRequest struct { LocationID string `json:"location_id"` }
+
+type JobRequestRequest struct {
+	RequestType string `json:"request_type"`
+	Mode string `json:"mode"`
+	TargetISPID string `json:"target_isp_id,omitempty"`
+	TargetTechnicianID string `json:"target_technician_id,omitempty"`
+	LocationID string `json:"location_id,omitempty"`
+	County string `json:"county"`
+	Town string `json:"town"`
+	Village string `json:"village"`
+	ServiceType string `json:"service_type"`
+	SpeedMbps int `json:"speed_mbps,omitempty"`
+	Description string `json:"description"`
+	Budget float64 `json:"budget"`
+	PreferredDate string `json:"preferred_date,omitempty"`
+}
+
+type JobApplicationRequest struct { Message string `json:"message"`; ProposedPrice float64 `json:"proposed_price"` }
+type JobAssignmentRequest struct { ApplicationID string `json:"application_id"` }
+type JobAvailabilityRequest struct { Available bool `json:"available"` }
+type JobRequestStatusRequest struct { Status string `json:"status"` }
+
+type FinalizeQuotationRequest struct {
+	CustomerID string `json:"customer_id"`
+	RequestID string `json:"request_id,omitempty"`
+	CompanyAddress string `json:"company_address,omitempty"`
+	CompanyLogoURL string `json:"company_logo_url,omitempty"`
+	Currency string `json:"currency,omitempty"`
+	Items []QuotationItemRequest `json:"items"`
+	TransportAmount float64 `json:"transport_amount,omitempty"`
+	TaxRateID string `json:"tax_rate_id,omitempty"`
+	TaxMode string `json:"tax_mode,omitempty"`
+	PaymentMethod string `json:"payment_method,omitempty"`
+	PaymentDetails map[string]string `json:"payment_details,omitempty"`
+	Terms []string `json:"terms,omitempty"`
+	Notes string `json:"notes,omitempty"`
+	ExpiresAt string `json:"expires_at,omitempty"`
+}
+type QuotationItemRequest struct { Item string `json:"item"`; Description string `json:"description,omitempty"`; UnitID string `json:"unit_id"`; Quantity float64 `json:"quantity"`; UnitPrice float64 `json:"unit_price"`; DiscountType string `json:"discount_type,omitempty"`; DiscountValue float64 `json:"discount_value,omitempty"` }
+type CustomUnitRequest struct { Name string `json:"name"`; SingularName string `json:"singular_name"`; PluralName string `json:"plural_name"`; Symbol string `json:"symbol"` }
+type QuotationStatusRequest struct { Status string `json:"status"` }
+
 type UpdateISPProfileRequest struct {
 	Name     string      `json:"name,omitempty"`
 	Email    string      `json:"email,omitempty"`
@@ -77,6 +133,8 @@ type SearchParams struct {
 	County    string
 	SubCounty string
 	Village   string
+	Sort      string
+	LocationResolved bool
 	// Role filters technicians (e.g. "installer", "surveyor", "support").
 	Role string
 	// Skills is an optional AND-set of technician skills.
@@ -179,6 +237,7 @@ func ParseSearchParams(r *http.Request) SearchParams {
 		County:        strings.TrimSpace(q.Get("county")),
 		SubCounty:     strings.TrimSpace(q.Get("sub_county")),
 		Village:       strings.TrimSpace(q.Get("village")),
+		Sort:          strings.ToLower(strings.TrimSpace(q.Get("sort"))),
 		Role:          strings.TrimSpace(q.Get("role")),
 		OnlyAvailable: parseBool(q.Get("available"), false),
 		OnlyActive:    parseBool(q.Get("active"), true),

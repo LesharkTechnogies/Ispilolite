@@ -111,6 +111,7 @@ func (h *LocationHandler) SubmitLocation(w http.ResponseWriter, r *http.Request)
 		Name:      req.Name,
 		Type:      req.Type,
 		ParentID:  req.ParentID,
+		County:    req.County,
 		Latitude:  req.Latitude,
 		Longitude: req.Longitude,
 		UserID:    userID,
@@ -144,4 +145,13 @@ func (h *LocationHandler) SubmitLocation(w http.ResponseWriter, r *http.Request)
 			"current_submissions": loc.SubmissionCount,
 		},
 	})
+}
+
+func (h *LocationHandler) ListCountyLocations(w http.ResponseWriter, r *http.Request) {
+	county := strings.TrimSpace(r.URL.Query().Get("county"))
+	if county == "" { respondWithError(w, http.StatusBadRequest, "county is required"); return }
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	locations, err := h.locationService.ListCountyLocations(county, limit)
+	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to list county locations"); return }
+	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"county": county, "places": locations}})
 }
