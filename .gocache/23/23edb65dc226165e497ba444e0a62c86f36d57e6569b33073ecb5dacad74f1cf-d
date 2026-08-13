@@ -1,0 +1,11 @@
+./breaker.go
+./client.go
+./es_query.go
+./es_recommend.go
+./es_repository.go
+./indexer.go
+./pg_recommend.go
+./pg_repository.go
+./pg_scan.go
+./repository.go
+./service.go

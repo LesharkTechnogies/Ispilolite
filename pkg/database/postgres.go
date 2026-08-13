@@ -6,9 +6,19 @@ import (
 	"io/ioutil"
 	"log"
 
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"gopkg.in/yaml.v2"
 )
+
+// NewPostgresConnection creates a new PostgreSQL connection using sqlx.
+func NewPostgresConnection(dsn string) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
 
 // DBConfig holds the configuration for a single database connection.
 type DBConfig struct {

@@ -1,0 +1,6 @@
+./connection.go
+./discovery.go
+./doc.go
+./elastictransport.go
+./logger.go
+./metrics.go
