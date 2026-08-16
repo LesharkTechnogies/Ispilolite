@@ -1,69 +1,76 @@
-# Todo List
+# Production TODO
 
-This file lists all the functions that need to be implemented and where they should be located.
+This checklist reflects the current repository after the location-learning, job, quotation, package-catalog, monitoring, queue, and authentication work.
 
-## `api/handlers/auth_handler.go`
+## Completed
 
-- [x] `GetMyProfile` (for clients)
-- [x] `UpdateMyProfile` (for clients)
-- [x] `GetMyISPProfile` (for ISPs)
-- [x] `UpdateMyISPProfile` (for ISPs)
-- [x] `GetMyTechProfile` (for technicians)
+- [x] Phone and case-insensitive username uniqueness with PostgreSQL constraints.
+- [x] OTP registration, access tokens, refresh tokens, and database-backed refresh sessions.
+- [x] Location learning with distinct-user submissions, county hierarchy, popularity, and verification.
+- [x] County/town/village provider search and locality-aware recommendations.
+- [x] ISP coverage management and coverage recommendations.
+- [x] Customer direct requests and broadcast jobs.
+- [x] Multi-provider job applications and transactional customer assignment.
+- [x] Job availability, soft deletion, status transitions, and notification events.
+- [x] Quotation finalization with server-side calculations, tax snapshots, public ILO codes, and persistence.
+- [x] Quotation units, custom units, tax rates, item discounts, transport, VAT, and payment snapshots.
+- [x] Prometheus HTTP, database, search, business, and RabbitMQ metrics.
+- [x] RabbitMQ durable exchanges, queues, confirmations, consumers, retries through DLQs, and notification worker.
+- [x] Normalized ISP package catalog with reusable speed/data units.
+- [x] ISP PPPoE and Hotspot packages.
+- [x] Package speed filtering, price-range filtering, cheapest sorting, and county-specific effective prices.
+- [x] ISP profile sorting by cheapest matching package with county/category/price/speed filters.
+- [x] Package capacity selling with unlimited/capped capacity fields.
+- [x] ISP package creation, update, county-price update, profile package loading, and public package discovery.
+- [x] Shared PostgreSQL search adapter now delegates to the maintained production search implementation.
+- [x] ISP and technician review persistence, listing, creation, and uniqueness checks.
+- [x] Baseline request logging and in-process rate limiting middleware.
+- [x] Redis session repository for cached user/device sessions.
 
-## `api/handlers/job_handler.go`
+## High Priority Production Work
 
-- [x] `GetISPs`
-- [x] `GetISPByID`
-- [ ] `GetISPPackages`
-- [ ] `GetISPReviews`
-- [ ] `CreateInstallation`
-- [ ] `GetMyInstallations`
-- [ ] `CreateISPReview`
-- [ ] `GetMyISPInstallations`
-- [ ] `UpdateInstallation`
-- [ ] `GetMyTechnicians`
-- [ ] `CreateTechnician`
-- [ ] `DeleteTechnician`
-- [ ] `CreatePackage`
-- [ ] `UpdatePackage`
-- [ ] `GetMyTechJobs`
-- [ ] `UpdateJobStatus`
+- [ ] Add integration tests against PostgreSQL for all migrations and transaction paths.
+- [ ] Add unit tests for quotation calculations, discounts, VAT inclusive/exclusive, package filters, and job assignment races.
+- [ ] Add API contract tests for Flutter payloads and error responses.
+- [ ] Add database migration version tracking instead of executing every SQL file on startup.
+- [ ] Add database backup, restore, retention, and disaster-recovery procedures.
+- [ ] Add PostgreSQL connection health, lock, slow-query, and replication-lag dashboards.
+- [ ] Replace in-process rate limiting with Redis-backed distributed rate limiting and request throttling.
+- [ ] Add structured JSON logging with correlation/request IDs.
+- [ ] Add distributed tracing with OpenTelemetry and Jaeger.
+- [ ] Add RabbitMQ connection recovery, consumer restart supervision, and DLQ replay tooling.
+- [ ] Add real FCM, SMS, email, and push provider adapters behind the notification webhook boundary.
+- [ ] Add idempotency keys for customer requests, quotation finalization, applications, and payments.
+- [ ] Add API authentication key rotation and refresh-token revocation for all sessions on logout/password change.
+- [ ] Add admin APIs for tax rates, system units, business profiles, package moderation, and audit logs.
+- [ ] Add PDF rendering/storage and public quotation download endpoints.
+- [ ] Add quotation payment verification and watermark entitlement checks.
+- [ ] Add ISP package inventory/capacity enforcement when a package is sold.
+- [ ] Add package versioning so historical customer subscriptions retain their original commercial terms.
 
-## `api/routes/routes.go`
+## Medium Priority
 
-- [ ] The routes for `/search/locations`, `/search/isps`, and `/search/technicians` are currently using a `placeholderHandler`. These need to be wired up to use the existing `SearchHandler` methods in `api/handlers/search_handler.go`.
+- [x] Add review aggregation updates to ISP/technician rating and review-count columns.
+- [x] Add review moderation, abuse reporting, and admin approval workflows.
+- [x] Implement technician profile/posts repositories and public portfolio endpoints.
+- [x] Add location fuzzy aliases and administrative-boundary validation.
+- [x] Add Elasticsearch index lifecycle, reindex, and mapping migration jobs.
+- [x] Add API pagination metadata and cursor pagination for high-volume search lists.
+- [x] Backfill legacy `isp_packages.speed` and `isp_packages.price` into normalized speed units/base prices.
+- [ ] Add package archive/delete endpoints and prevent changes to packages referenced by active subscriptions.
+- [ ] Add package availability/capacity reservation and subscription lifecycle enforcement.
+- [ ] Add WebSocket or SSE delivery for notification updates.
+- [ ] Add Grafana dashboards and Prometheus alert rules for p95 latency, error rate, DB saturation, queue depth, and search fallback rate.
+- [ ] Add OpenAPI generation and CI schema compatibility checks.
 
-## Empty Files to be Implemented
+## Deployment And Security
 
-The following files are empty and need to have their respective functionalities implemented.
-
-### Handlers
-- [ ] `api/handlers/auth_handler.go`
-- [x] `api/handlers/job_handler.go`
-- [ ] `api/handlers/location_handler.go`
-
-### Middleware
-- [ ] `internal/middleware/logger.go`
-- [ ] `internal/middleware/ratelimit.go`
-
-### Models
-- [ ] `internal/models/job.go`
-- [ ] `internal/models/quotation.go`
-
-### Repositories
-- [ ] `internal/repository/elasticsearch/search_repo.go`
-- [ ] `internal/repository/postgres/job_repo.go`
-- [ ] `internal/repository/postgres/location_repo.go`
-- [ ] `internal/repository/postgres/user_repo.go`
-- [ ] `internal/repository/redis/cache.go`
-- [ ] `internal/repository/redis/session.go`
-
-### Services
-- [ ] `internal/services/auth/auth_service.go`
-- [ ] `internal/services/geospatial/geospatial_service.go`
-- [ ] `internal/services/matching/matching_service.go`
-- [ ] `internal/services/notification/notification_service.go`
-
-### Utils
-- [ ] `internal/utils/geoutils.go`
-- [ ] `internal/utils/watermark.go`
+- [ ] Regenerate `go.sum` with the installed Go toolchain and run `go test ./...`.
+- [ ] Run `go vet ./...`, static analysis, race tests, and vulnerability scanning in CI.
+- [ ] Remove development JWT fallback secrets from production startup.
+- [ ] Store RabbitMQ, database, Redis, JWT, SMS, email, and webhook secrets in a secret manager.
+- [ ] Configure TLS for PostgreSQL, Redis, RabbitMQ, Elasticsearch, and public APIs.
+- [ ] Restrict `/metrics` to the monitoring network or protect it with network policy.
+- [ ] Configure RabbitMQ users, vhosts, permissions, quorum queues, and multi-node deployment.
+- [ ] Configure Prometheus 30-day retention and Grafana persistent storage.
+- [ ] Add Kubernetes readiness/liveness probes and resource limits for every worker.

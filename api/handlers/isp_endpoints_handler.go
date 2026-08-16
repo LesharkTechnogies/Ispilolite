@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -169,9 +170,9 @@ func (h *ISPEndpointsHandler) RemoveTechnician(w http.ResponseWriter, r *http.Re
 // CreatePackage creates a new internet package.
 func (h *ISPEndpointsHandler) CreatePackage(w http.ResponseWriter, r *http.Request) {
 	var req dto.ISPPackageRequest
-	if err := decodeJSON(w, r, &req); err != nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Speed) == "" || req.Price < 0 { respondWithError(w, http.StatusBadRequest, "invalid package"); return }
-	pkg := &models.ISPPackage{ID:utils.GenerateID(), ISP_ID:userIDFromContext(r.Context()), Name:strings.TrimSpace(req.Name), Speed:strings.TrimSpace(req.Speed), Price:req.Price, Description:strings.TrimSpace(req.Description)}
-	if err := h.ispService.CreatePackage(pkg); err != nil { respondWithError(w, http.StatusInternalServerError, "failed to create package"); return }
+	if err := decodeJSON(w, r, &req); err != nil { respondWithError(w, http.StatusBadRequest, "invalid package"); return }
+	active:=true;if req.IsActive!=nil{active=*req.IsActive};pkg := &models.ISPPackage{ID:utils.GenerateID(), ISP_ID:userIDFromContext(r.Context()), Name:req.Name,Category:req.Category,SpeedValue:req.SpeedValue,SpeedUnitID:req.SpeedUnitID,BasePrice:req.BasePrice,BillingCycle:req.BillingCycle,CapacityType:req.CapacityType,CapacityValue:req.CapacityValue,CapacityUnitID:req.CapacityUnitID,IsActive:active,Description:strings.TrimSpace(req.Description)}
+	if err := h.ispService.CreatePackage(pkg); err != nil { respondWithError(w, http.StatusBadRequest, err.Error()); return }
 	respondWithJSON(w, http.StatusCreated, dto.Response{Success:true, Data:pkg})
 }
 
@@ -179,8 +180,14 @@ func (h *ISPEndpointsHandler) CreatePackage(w http.ResponseWriter, r *http.Reque
 func (h *ISPEndpointsHandler) UpdatePackage(w http.ResponseWriter, r *http.Request) {
 	packageID := pathParam(r.URL.Path, "/api/v1/packages/")
 	var req dto.ISPPackageRequest
-	if packageID == "" || decodeJSON(w, r, &req) != nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Speed) == "" || req.Price < 0 { respondWithError(w, http.StatusBadRequest, "invalid package"); return }
-	pkg := &models.ISPPackage{ID:packageID, ISP_ID:userIDFromContext(r.Context()), Name:strings.TrimSpace(req.Name), Speed:strings.TrimSpace(req.Speed), Price:req.Price, Description:strings.TrimSpace(req.Description)}
+	if packageID == "" || decodeJSON(w, r, &req) != nil { respondWithError(w, http.StatusBadRequest, "invalid package"); return }
+	active:=true;if req.IsActive!=nil{active=*req.IsActive};pkg := &models.ISPPackage{ID:packageID, ISP_ID:userIDFromContext(r.Context()), Name:req.Name,Category:req.Category,SpeedValue:req.SpeedValue,SpeedUnitID:req.SpeedUnitID,BasePrice:req.BasePrice,BillingCycle:req.BillingCycle,CapacityType:req.CapacityType,CapacityValue:req.CapacityValue,CapacityUnitID:req.CapacityUnitID,IsActive:active,Description:strings.TrimSpace(req.Description)}
 	if err := h.ispService.UpdatePackage(pkg); err != nil { if err == sql.ErrNoRows { respondWithError(w, http.StatusNotFound, "package not found"); return }; respondWithError(w, http.StatusInternalServerError, "failed to update package"); return }
 	respondWithJSON(w, http.StatusOK, dto.Response{Success:true, Data:pkg})
 }
+
+func (h *ISPEndpointsHandler) SetPackageCountyPrice(w http.ResponseWriter,r *http.Request){packageID:=pathParam(r.URL.Path,"/api/v1/packages/");packageID=strings.TrimSuffix(packageID,"/prices");var req dto.ISPPackagePriceRequest;if packageID==""||decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid county price");return};if err:=h.ispService.SetPackageCountyPrice(packageID,userIDFromContext(r.Context()),req.County,req.Price);err!=nil{if err==sql.ErrNoRows{respondWithError(w,404,"package not found");return};respondWithError(w,400,err.Error());return};respondWithJSON(w,200,dto.Response{Success:true,Message:"county price updated"})}
+func(h *ISPEndpointsHandler)ArchivePackage(w http.ResponseWriter,r *http.Request){id:=strings.TrimSuffix(pathParam(r.URL.Path,"/api/v1/packages/"),"/archive");if err:=h.ispService.ArchivePackage(id,userIDFromContext(r.Context()));err!=nil{respondWithError(w,404,"package not found");return};respondWithJSON(w,200,dto.Response{Success:true,Message:"package archived"})}
+func(h *ISPEndpointsHandler)DeletePackage(w http.ResponseWriter,r *http.Request){id:=pathParam(r.URL.Path,"/api/v1/packages/");if err:=h.ispService.DeletePackage(id,userIDFromContext(r.Context()));err!=nil{respondWithError(w,409,err.Error());return};respondWithJSON(w,200,dto.Response{Success:true,Message:"package deleted"})}
+func(h *ISPEndpointsHandler)ListSubscriptions(w http.ResponseWriter,r *http.Request){limit,_:=strconv.Atoi(r.URL.Query().Get("limit"));items,err:=h.ispService.ListSubscriptions(userIDFromContext(r.Context()),userRoleFromContext(r.Context()),r.URL.Query().Get("status"),limit);if err!=nil{respondWithError(w,500,"failed to list subscriptions");return};respondWithJSON(w,200,dto.Response{Success:true,Data:items})}
+func(h *ISPEndpointsHandler)UpdateSubscription(w http.ResponseWriter,r *http.Request){id:=pathParam(r.URL.Path,"/api/v1/subscriptions/");var req dto.PackageSubscriptionStatusRequest;if id==""||decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid subscription update");return};var ends *time.Time;if req.EndsAt!=""{parsed,err:=time.Parse(time.RFC3339,req.EndsAt);if err!=nil{respondWithError(w,400,"ends_at must be RFC3339");return};ends=&parsed};if err:=h.ispService.UpdateSubscription(id,userIDFromContext(r.Context()),req.Status,ends);err!=nil{respondWithError(w,400,err.Error());return};respondWithJSON(w,200,dto.Response{Success:true,Message:"subscription updated"})}

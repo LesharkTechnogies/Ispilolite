@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,7 +23,8 @@ type LoginRequest struct {
 }
 
 type ISPProfileRequest struct { Name string `json:"name"`; Description string `json:"description"`; LogoURL string `json:"logo_url"`; CustomerCareNumber string `json:"customer_care_number"`; AvgResponseTime int `json:"avg_response_time"`; AvgPrice float64 `json:"avg_price"` }
-type ISPPackageRequest struct { Name string `json:"name"`; Speed string `json:"speed"`; Price float64 `json:"price"`; Description string `json:"description"` }
+type ISPPackageRequest struct { Name string `json:"name"`; Category string `json:"category"`; SpeedValue float64 `json:"speed_value"`; SpeedUnitID string `json:"speed_unit_id"`; BasePrice float64 `json:"base_price"`; BillingCycle string `json:"billing_cycle"`; CapacityType string `json:"capacity_type"`; CapacityValue float64 `json:"capacity_value,omitempty"`; CapacityUnitID string `json:"capacity_unit_id,omitempty"`; MaxSubscriptions int `json:"max_subscriptions,omitempty"`; Description string `json:"description"`; IsActive *bool `json:"is_active,omitempty"` }
+type ISPPackagePriceRequest struct { County string `json:"county"`; Price float64 `json:"price"` }
 type InstallationStatusRequest struct { Status string `json:"status"`; TechnicianID string `json:"technician_id,omitempty"` }
 type TechnicianInviteRequest struct { Phone string `json:"phone"`; Name string `json:"name"`; Email string `json:"email"`; Username string `json:"username"`; Password string `json:"password"` }
 
@@ -101,6 +103,11 @@ type FinalizeQuotationRequest struct {
 type QuotationItemRequest struct { Item string `json:"item"`; Description string `json:"description,omitempty"`; UnitID string `json:"unit_id"`; Quantity float64 `json:"quantity"`; UnitPrice float64 `json:"unit_price"`; DiscountType string `json:"discount_type,omitempty"`; DiscountValue float64 `json:"discount_value,omitempty"` }
 type CustomUnitRequest struct { Name string `json:"name"`; SingularName string `json:"singular_name"`; PluralName string `json:"plural_name"`; Symbol string `json:"symbol"` }
 type QuotationStatusRequest struct { Status string `json:"status"` }
+type TechnicianProfileRequest struct { Bio string `json:"bio"`; ExperienceYears int `json:"experience_years"`; PricePerHour float64 `json:"price_per_hour"`; IsAvailable bool `json:"is_available"`; County string `json:"county"`; Town string `json:"town"`; Village string `json:"village"`; Skills []string `json:"skills"` }
+type TechnicianPostRequest struct { Title string `json:"title"`; Description string `json:"description"`; ServiceType string `json:"service_type"`; MediaURLs []string `json:"media_urls"`; Status string `json:"status"` }
+type LocationAliasRequest struct { Alias string `json:"alias"` }
+type PackageSubscriptionRequest struct { PackageID string `json:"package_id"`; County string `json:"county"` }
+type PackageSubscriptionStatusRequest struct { Status string `json:"status"`; EndsAt string `json:"ends_at,omitempty"` }
 
 type UpdateISPProfileRequest struct {
 	Name     string      `json:"name,omitempty"`
@@ -149,6 +156,7 @@ type SearchParams struct {
 	// Paging.
 	Page     int
 	PageSize int
+	Cursor string
 
 	// Fuzzy toggles typo-tolerant matching. Defaults to true so that
 	// "safricom" still finds "Safaricom". Set ?fuzzy=false for exact.
@@ -223,8 +231,11 @@ func ParseRecommendParams(r *http.Request) RecommendParams {
 // Offset is the zero-based document offset derived from Page/PageSize,
 // used by both the ES `from` parameter and SQL OFFSET.
 func (p SearchParams) Offset() int {
+	if p.Cursor != "" { if raw,err:=base64.RawURLEncoding.DecodeString(p.Cursor);err==nil{if offset,err:=strconv.Atoi(string(raw));err==nil&&offset>=0{return offset}} }
 	return (p.Page - 1) * p.PageSize
 }
+
+func EncodeCursor(offset int) string { if offset < 0 { offset = 0 }; return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(offset))) }
 
 // ParseSearchParams reads the standard search knobs from an *http.Request.
 // It is tolerant: bad numbers fall back to defaults rather than erroring so a
@@ -244,6 +255,7 @@ func ParseSearchParams(r *http.Request) SearchParams {
 		MinRating:     parseFloat(q.Get("min_rating"), 0),
 		Page:          parseInt(q.Get("page"), defaultPage),
 		PageSize:      parseInt(firstQueryValue(q.Get("page_size"), q.Get("limit")), defaultPageSize),
+		Cursor:        strings.TrimSpace(q.Get("cursor")),
 		Fuzzy:         parseBool(q.Get("fuzzy"), true),
 	}
 

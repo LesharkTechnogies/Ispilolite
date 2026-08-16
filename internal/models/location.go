@@ -26,6 +26,7 @@ type Location struct {
 	IsVerified bool `json:"is_verified" db:"is_verified"`
 	SubmissionCount int `json:"submission_count" db:"submission_count"`
 	PopularityScore float64 `json:"popularity_score" db:"popularity_score"`
+	Aliases []string `json:"aliases,omitempty" db:"-"`
 }
 
 type LocationSubmission struct {
@@ -38,6 +39,7 @@ type LocationSubmission struct {
 	Latitude float64
 	Longitude float64
 }
+type LocationAlias struct { ID string `json:"id"`; LocationID string `json:"location_id"`; Alias string `json:"alias"`; CreatedBy string `json:"created_by"`; Status string `json:"status"`; CreatedAt time.Time `json:"created_at"` }
 
 // Location type constants.
 const (

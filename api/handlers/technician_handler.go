@@ -12,6 +12,7 @@ import (
 	"ispilolite/internal/services/jobrequest"
 	"ispilolite/internal/services/review"
 	"ispilolite/internal/services/user"
+	techsvc "ispilolite/internal/services/technician"
 	"ispilolite/internal/utils"
 )
 
@@ -20,6 +21,7 @@ type TechnicianHandler struct {
 	userService   *user.UserService
 	reviewService *review.ReviewService
 	jobRequestService *jobrequest.Service
+	portfolioService *techsvc.Service
 }
 
 // NewTechnicianHandler creates a new TechnicianHandler.
@@ -29,10 +31,12 @@ func NewTechnicianHandler() *TechnicianHandler {
 	reviewRepo := postgres.NewReviewRepo()
 	reviewService := review.NewReviewService(reviewRepo)
 	jobRequestService := jobrequest.NewService(postgres.NewJobRequestRepo())
+	portfolioService := techsvc.NewService(postgres.NewTechnicianRepository())
 	return &TechnicianHandler{
 		userService:   userService,
 		reviewService: reviewService,
 		jobRequestService: jobRequestService,
+		portfolioService: portfolioService,
 	}
 }
 
@@ -55,6 +59,12 @@ func (h *TechnicianHandler) GetJobs(w http.ResponseWriter, r *http.Request) {
 	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to get job requests"); return }
 	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"requests": jobs}})
 }
+
+func(h *TechnicianHandler)GetPublicProfile(w http.ResponseWriter,r *http.Request){id:=pathParam(r.URL.Path,"/api/v1/technicians/");id=strings.TrimSuffix(id,"/profile");profile,err:=h.portfolioService.GetProfile(id);if err!=nil{respondWithError(w,404,"technician profile not found");return};posts,_:=h.portfolioService.Portfolio(id);respondWithJSON(w,200,dto.Response{Success:true,Data:map[string]interface{}{"profile":profile,"posts":posts}})}
+func(h *TechnicianHandler)UpdatePortfolioProfile(w http.ResponseWriter,r *http.Request){var req dto.TechnicianProfileRequest;if decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid profile");return};p:=&models.TechnicianProfile{Bio:req.Bio,ExperienceYears:req.ExperienceYears,PricePerHour:req.PricePerHour,IsAvailable:req.IsAvailable,County:req.County,Town:req.Town,Village:req.Village,Skills:req.Skills};if err:=h.portfolioService.UpsertProfile(userIDFromContext(r.Context()),p);err!=nil{respondWithError(w,400,err.Error());return};respondWithJSON(w,200,dto.Response{Success:true,Data:p})}
+func(h *TechnicianHandler)CreatePortfolioPost(w http.ResponseWriter,r *http.Request){var req dto.TechnicianPostRequest;if decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid post");return};p,err:=h.portfolioService.CreatePost(userIDFromContext(r.Context()),&models.TechnicianPost{Title:req.Title,Description:req.Description,ServiceType:req.ServiceType,MediaURLs:req.MediaURLs,Status:req.Status});if err!=nil{respondWithError(w,400,err.Error());return};respondWithJSON(w,201,dto.Response{Success:true,Data:p})}
+func(h *TechnicianHandler)UpdatePortfolioPost(w http.ResponseWriter,r *http.Request){id:=pathParam(r.URL.Path,"/api/v1/my/portfolio/posts/");var req dto.TechnicianPostRequest;if id==""||decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid post");return};p,err:=h.portfolioService.UpdatePost(id,userIDFromContext(r.Context()),&models.TechnicianPost{Title:req.Title,Description:req.Description,ServiceType:req.ServiceType,MediaURLs:req.MediaURLs,Status:req.Status});if err!=nil{respondWithError(w,404,"post not found");return};respondWithJSON(w,200,dto.Response{Success:true,Data:p})}
+func(h *TechnicianHandler)GetMyPortfolioPosts(w http.ResponseWriter,r *http.Request){items,err:=h.portfolioService.MyPosts(userIDFromContext(r.Context()));if err!=nil{respondWithError(w,500,"failed to list posts");return};respondWithJSON(w,200,dto.Response{Success:true,Data:items})}
 
 func (h *TechnicianHandler) GetAvailableJobs(w http.ResponseWriter, r *http.Request) {
 	jobs, err := h.jobRequestService.ListAvailable(r.URL.Query().Get("county"), r.URL.Query().Get("town"), r.URL.Query().Get("service_type"))
@@ -171,3 +181,5 @@ func (h *TechnicianHandler) CreateTechnicianReview(w http.ResponseWriter, r *htt
 		},
 	})
 }
+
+func (h *TechnicianHandler) ReportReview(w http.ResponseWriter,r *http.Request){reviewID:=pathParam(r.URL.Path,"/api/v1/reviews/");reviewID=strings.TrimSuffix(reviewID,"/report");var req struct{Reason string `json:"reason"`};if reviewID==""||decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid report");return};if err:=h.reviewService.Report(reviewID,userIDFromContext(r.Context()),req.Reason);err!=nil{respondWithError(w,400,err.Error());return};respondWithJSON(w,201,dto.Response{Success:true,Message:"review reported"})}

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"log"
 	"strconv"
@@ -148,11 +150,22 @@ func runMigrations(ctx context.Context, dir string) error {
 	defer conn.Close()
 	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock(821527390)"); err != nil { return fmt.Errorf("acquire migration lock: %w", err) }
 	defer conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock(821527390)")
+	if _,err:=conn.ExecContext(ctx,`CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);err!=nil{return fmt.Errorf("create schema_migrations: %w",err)}
 	files, err := filepath.Glob(filepath.Join(dir, "*.sql")); if err != nil { return err }
 	sort.Strings(files)
-	for _, file := range files { sqlBytes, err := os.ReadFile(file); if err != nil { return err }; if strings.TrimSpace(string(sqlBytes)) == "" { continue }; if _, err = conn.ExecContext(ctx, string(sqlBytes)); err != nil { return fmt.Errorf("%s: %w", file, err) } }
+	for _, file := range files { sqlBytes, err := os.ReadFile(file); if err != nil { return err }; migrationSQL:=migrationBody(string(sqlBytes));if migrationSQL==""{continue};version:=filepath.Base(file);sum:=sha256.Sum256(sqlBytes);checksum:=hex.EncodeToString(sum[:]);var existing string;err=conn.QueryRowContext(ctx,`SELECT checksum FROM schema_migrations WHERE version=$1`,version).Scan(&existing);if err==nil{if existing!=checksum{return fmt.Errorf("migration %s changed after being applied",version)};continue};if err!=sql.ErrNoRows{return err};tx,err:=conn.BeginTx(ctx,nil);if err!=nil{return err};if _,err=tx.ExecContext(ctx,migrationSQL);err!=nil{tx.Rollback();return fmt.Errorf("%s: %w",file,err)};if _,err=tx.ExecContext(ctx,`INSERT INTO schema_migrations(version,checksum) VALUES($1,$2)`,version,checksum);err!=nil{tx.Rollback();return err};if err=tx.Commit();err!=nil{return err} }
 	if len(files) == 0 { return fmt.Errorf("no migration files found in %s", dir) }
 	return nil
+}
+
+func migrationBody(raw string) string {
+	lines:=strings.Split(strings.ReplaceAll(raw,"\r\n","\n"),"\n")
+	start,end:=0,len(lines)
+	for start<end&&strings.TrimSpace(lines[start])==""{start++}
+	if start<end&&strings.EqualFold(strings.TrimSpace(lines[start]),"BEGIN;"){start++}
+	for end>start&&strings.TrimSpace(lines[end-1])==""{end--}
+	if end>start&&strings.EqualFold(strings.TrimSpace(lines[end-1]),"COMMIT;"){end--}
+	return strings.TrimSpace(strings.Join(lines[start:end],"\n"))
 }
 
 func verifySchema(ctx context.Context, db *sql.DB) error {

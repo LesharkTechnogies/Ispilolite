@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"log"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -70,7 +71,7 @@ type queryFn func(ctx context.Context, repo Repository) (*Page, error)
 
 // run executes fn against ES (fast path) with a fallback to Postgres, applying
 // timeouts and the circuit breaker, and builds the SearchMeta envelope.
-func (s *Service) run(ctx context.Context, query string, page, pageSize int, fn queryFn) dto.SearchResult {
+func (s *Service) run(ctx context.Context, query string, page, pageSize, offset int, fn queryFn) dto.SearchResult {
 	start := time.Now()
 
 	// Fast path: Elasticsearch, unless the breaker is open or it's absent.
@@ -80,7 +81,7 @@ func (s *Service) run(ctx context.Context, query string, page, pageSize int, fn 
 		cancel()
 		if err == nil {
 			s.breaker.Success()
-			return s.envelope(res, sourceES, query, page, pageSize, start, false, false)
+			return s.envelope(res, sourceES, query, page, pageSize, offset, start, false, false)
 		}
 		s.breaker.Failure()
 		s.logger.Printf("search: elasticsearch failed (breaker=%s), falling back: %v", s.breaker.State(), err)
@@ -92,22 +93,23 @@ func (s *Service) run(ctx context.Context, query string, page, pageSize int, fn 
 		res, err := fn(pgCtx, s.fallback)
 		cancel()
 		if err == nil {
-			return s.envelope(res, sourcePG, query, page, pageSize, start, true, true)
+			return s.envelope(res, sourcePG, query, page, pageSize, offset, start, true, true)
 		}
 		s.logger.Printf("search: postgres fallback failed: %v", err)
 	}
 
 	// Both backends unavailable: return an empty, well-formed result rather
 	// than an error so the API stays predictable for clients.
-	return s.envelope(&Page{Items: []interface{}{}}, sourcePG, query, page, pageSize, start, true, true)
+	return s.envelope(&Page{Items: []interface{}{}}, sourcePG, query, page, pageSize, offset, start, true, true)
 }
 
 // envelope wraps a Page in the transport DTO with populated metadata.
-func (s *Service) envelope(p *Page, source, query string, page, pageSize int, start time.Time, fallback, degraded bool) dto.SearchResult {
+func (s *Service) envelope(p *Page, source, query string, page, pageSize, offset int, start time.Time, fallback, degraded bool) dto.SearchResult {
 	if p == nil {
 		p = &Page{Items: []interface{}{}}
 	}
 	monitoring.SearchRequests.WithLabelValues(source, strconv.FormatBool(degraded)).Inc()
+	returned:=0;value:=reflect.ValueOf(p.Items);if value.IsValid()&&(value.Kind()==reflect.Slice||value.Kind()==reflect.Array){returned=value.Len()};hasMore:=offset+returned<p.Total;nextCursor:="";if hasMore{nextCursor=dto.EncodeCursor(offset+returned)}
 	return dto.SearchResult{
 		Items:       p.Items,
 		Suggestions: p.Suggestions,
@@ -121,6 +123,8 @@ func (s *Service) envelope(p *Page, source, query string, page, pageSize int, st
 			Query:    query,
 			Fallback: fallback,
 			Degraded: degraded,
+			NextCursor: nextCursor,
+			HasMore: hasMore,
 		},
 	}
 }
@@ -133,7 +137,7 @@ func (s *Service) envelope(p *Page, source, query string, page, pageSize int, st
 func (s *Service) SearchISPs(ctx context.Context, p dto.SearchParams) dto.SearchResult {
 	query := p.Query
 	p = s.resolveLocation(ctx, p)
-	return s.run(ctx, query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
+	return s.run(ctx, query, p.Page, p.PageSize, p.Offset(), func(ctx context.Context, repo Repository) (*Page, error) {
 		return repo.SearchISPs(ctx, p)
 	})
 }
@@ -142,7 +146,7 @@ func (s *Service) SearchISPs(ctx context.Context, p dto.SearchParams) dto.Search
 func (s *Service) SearchTechnicians(ctx context.Context, p dto.SearchParams) dto.SearchResult {
 	query := p.Query
 	p = s.resolveLocation(ctx, p)
-	return s.run(ctx, query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
+	return s.run(ctx, query, p.Page, p.PageSize, p.Offset(), func(ctx context.Context, repo Repository) (*Page, error) {
 		return repo.SearchTechnicians(ctx, p)
 	})
 }
@@ -157,14 +161,14 @@ func (s *Service) resolveLocation(ctx context.Context, p dto.SearchParams) dto.S
 
 // SearchTechniciansNear backs GET /search/tech/near.
 func (s *Service) SearchTechniciansNear(ctx context.Context, p dto.GeoParams) dto.SearchResult {
-	return s.run(ctx, p.Query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
+	return s.run(ctx, p.Query, p.Page, p.PageSize, p.Offset(), func(ctx context.Context, repo Repository) (*Page, error) {
 		return repo.SearchTechniciansNear(ctx, p)
 	})
 }
 
 // SearchLocations backs GET /search/location.
 func (s *Service) SearchLocations(ctx context.Context, p dto.SearchParams) dto.SearchResult {
-	return s.run(ctx, p.Query, p.Page, p.PageSize, func(ctx context.Context, repo Repository) (*Page, error) {
+	return s.run(ctx, p.Query, p.Page, p.PageSize, p.Offset(), func(ctx context.Context, repo Repository) (*Page, error) {
 		return repo.SearchLocations(ctx, p)
 	})
 }

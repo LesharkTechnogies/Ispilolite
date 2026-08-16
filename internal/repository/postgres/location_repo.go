@@ -58,11 +58,15 @@ func (r *locationRepository) FindLocationByName(name, kind, parentID string) (*m
 }
 
 func (r *locationRepository) SearchLocations(query, kind string, limit int) ([]*models.Location, error) {
-	rows, err := r.dbReader.Query(`SELECT `+locationColumns+` FROM locations WHERE name ILIKE '%' || $1 || '%' AND ($2='' OR type=$2) ORDER BY is_verified DESC, popularity_score DESC, name LIMIT $3`, query, kind, limit)
+	rows, err := r.dbReader.Query(`SELECT DISTINCT `+locationColumns+` FROM locations WHERE (name ILIKE '%' || $1 || '%' OR EXISTS(SELECT 1 FROM location_aliases a WHERE a.location_id=locations.id AND a.status='approved' AND a.normalized_alias % lower(trim($1)))) AND ($2='' OR type=$2) ORDER BY is_verified DESC, popularity_score DESC, name LIMIT $3`, query, kind, limit)
 	if err != nil { return nil, err }
 	defer rows.Close()
 	return scanLocations(rows)
 }
+
+func(r *locationRepository)CreateAlias(a *models.LocationAlias)error{_,err:=r.dbWriter.Exec(`INSERT INTO location_aliases(id,location_id,alias,normalized_alias,created_by,status,created_at) VALUES($1,$2,$3,lower(trim($3)),$4,$5,$6) ON CONFLICT(location_id,normalized_alias) DO UPDATE SET alias=EXCLUDED.alias,status=EXCLUDED.status`,a.ID,a.LocationID,a.Alias,a.CreatedBy,a.Status,a.CreatedAt);return err}
+func(r *locationRepository)SearchAliases(query string,limit int)([]*models.Location,error){rows,err:=r.dbReader.Query(`SELECT `+locationColumns+` FROM locations WHERE id IN(SELECT location_id FROM location_aliases WHERE status='approved' AND (normalized_alias ILIKE '%'||lower(trim($1))||'%' OR similarity(normalized_alias,lower(trim($1)))>0.3) ORDER BY similarity(normalized_alias,lower(trim($1))) DESC LIMIT $2) ORDER BY popularity_score DESC`,query,limit);if err!=nil{return nil,err};defer rows.Close();return scanLocations(rows)}
+func(r *locationRepository)ValidateBoundary(parentID string,lat,lon float64)(bool,error){var minLat,maxLat,minLon,maxLon float64;err:=r.dbReader.QueryRow(`SELECT min_lat,max_lat,min_lon,max_lon FROM location_boundaries WHERE location_id=$1`,parentID).Scan(&minLat,&maxLat,&minLon,&maxLon);if err==sql.ErrNoRows{return true,nil};if err!=nil{return false,err};return lat>=minLat&&lat<=maxLat&&lon>=minLon&&lon<=maxLon,nil}
 
 func (r *locationRepository) RecordSubmission(submission *models.LocationSubmission) (bool, error) {
 	result, err := r.dbWriter.Exec(`INSERT INTO location_submissions (location_id,user_id,latitude,longitude,created_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (location_id,user_id) DO NOTHING`, submission.LocationID, submission.UserID, submission.Latitude, submission.Longitude, time.Now().UTC())

@@ -71,6 +71,9 @@ func main() {
 			} else {
 				logger.Printf("indices ensured")
 			}
+			if version := strings.TrimSpace(os.Getenv("ES_INDEX_VERSION")); version != "" {
+				if ierr := esClient.EnsureVersionedIndices(bootCtx, version); ierr != nil { logger.Printf("WARN could not migrate versioned indices: %v", ierr) } else { logger.Printf("versioned index aliases migrated to v%s", version) }
+			}
 		}
 	}
 	cancelBoot()

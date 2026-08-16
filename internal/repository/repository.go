@@ -21,18 +21,32 @@ type UserRepository interface {
 
 type ISPRepository interface {
 	GetISPs() ([]*models.ISP, error)
+	ListISPsByPackage(filter models.PackageFilter) ([]*models.ISP, error)
 	GetISPByID(ispID string) (*models.ISP, error)
 	GetISPPackages(ispID string) ([]*models.ISPPackage, error)
 	CreateISP(isp *models.ISP) error
 	UpdateISP(isp *models.ISP) error
 	CreatePackage(pkg *models.ISPPackage) error
 	UpdatePackage(pkg *models.ISPPackage) error
+	ListPackages(filter models.PackageFilter) ([]*models.ISPPackage, error)
+	SetPackageCountyPrice(packageID, ispID, county string, price float64) error
+	ListPackageUnits(dimension string) ([]*models.PackageUnit, error)
+	ValidatePackageUnits(speedUnitID, capacityUnitID, capacityType string) error
+	ArchivePackage(packageID, ispID string) error
+	DeletePackage(packageID, ispID string) error
+	ReservePackage(packageID, customerID, county string, expiresAt time.Time) (string, error)
+	CreatePackageSubscription(reservationID, customerID string) (*models.PackageSubscription, error)
+	UpdatePackageSubscription(subscriptionID, actorID, status string, endsAt *time.Time) error
+	ListPackageSubscriptions(userID, role, status string, limit int) ([]*models.PackageSubscription, error)
 }
 
 type ReviewRepository interface {
 	CreateReview(review *models.Review) error
 	GetReviewsByTarget(targetID string, targetType string) ([]*models.Review, error)
 	AnonymizeReviewsByUserID(userID string) error
+	ReportReview(report *models.ReviewReport) error
+	ModerateReview(reviewID, adminID, status, note string) error
+	ListPendingReviews(limit int) ([]*models.Review, error)
 }
 
 type FlagRepository interface {
@@ -97,6 +111,9 @@ type LocationRepository interface {
 	// verification flag and status after a new submission.
 	UpdateLocationStats(id string, submissionCount int, popularityScore float64, isVerified bool, status string) error
 	ListLocationsByCounty(county string, limit int) ([]*models.Location, error)
+	CreateAlias(alias *models.LocationAlias) error
+	SearchAliases(query string, limit int) ([]*models.Location, error)
+	ValidateBoundary(locationID string, lat, lon float64) (bool, error)
 }
 
 type CoverageRepository interface {

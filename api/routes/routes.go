@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ func SetupRouter() http.Handler {
 	adminHandler := handlers.NewAdminHandler()
 	locationHandler := handlers.NewLocationHandler()
 	quotationHandler := handlers.NewQuotationHandler()
+	reviewAdminHandler := handlers.NewReviewAdminHandler()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -54,6 +56,9 @@ func SetupRouter() http.Handler {
 
 	mux.Handle("/api/v1/admin/deletion-requests", middleware.AuthMiddleware("admin")(methodHandler(http.MethodGet, adminHandler.GetDeletionRequests)))
 	mux.Handle("/api/v1/admin/approve-deletion", middleware.AuthMiddleware("admin")(methodHandler(http.MethodPost, adminHandler.ApproveDeletion)))
+	mux.Handle("/api/v1/admin/reviews",middleware.AuthMiddleware("admin")(methodHandler(http.MethodGet,reviewAdminHandler.Pending)))
+	mux.Handle("/api/v1/admin/reviews/",middleware.AuthMiddleware("admin")(methodHandler(http.MethodPut,reviewAdminHandler.Moderate)))
+	mux.HandleFunc("/api/v1/reviews/",func(w http.ResponseWriter,r *http.Request){if r.Method==http.MethodPost&&strings.HasSuffix(r.URL.Path,"/report"){middleware.AuthMiddleware("")(http.HandlerFunc(technicianHandler.ReportReview)).ServeHTTP(w,r);return};http.Error(w,"method not allowed",405)})
 
 	mux.HandleFunc("/api/v1/auth/register", methodHandler(http.MethodPost, authHandler.Register))
 	mux.HandleFunc("/api/v1/auth/login", methodHandler(http.MethodPost, authHandler.Login))
@@ -63,6 +68,8 @@ func SetupRouter() http.Handler {
 
 	mux.HandleFunc("/api/v1/isps", methodHandler(http.MethodGet, ispHandler.GetISPs))
 	mux.HandleFunc("/api/v1/isps/", ispDispatcher(ispHandler))
+	mux.HandleFunc("/api/v1/isp-packages", methodHandler(http.MethodGet, ispHandler.ListPackages))
+	mux.HandleFunc("/api/v1/package-units", methodHandler(http.MethodGet, ispHandler.ListPackageUnits))
 
 	// Geospatial location endpoints (ispiloliteapi.md §3.2). Search is public;
 	// submitting a place requires authentication so submissions can be counted
@@ -76,7 +83,7 @@ func SetupRouter() http.Handler {
 		}
 		middleware.AuthMiddleware("")(http.HandlerFunc(locationHandler.SubmitLocation)).ServeHTTP(w, r)
 	})
-	mux.HandleFunc("/api/v1/geo/locations/", methodHandler(http.MethodGet, locationHandler.GetLocation))
+	mux.HandleFunc("/api/v1/geo/locations/",func(w http.ResponseWriter,r *http.Request){if r.Method==http.MethodPost&&strings.HasSuffix(r.URL.Path,"/aliases"){middleware.AuthMiddleware("")(http.HandlerFunc(locationHandler.AddAlias)).ServeHTTP(w,r);return};methodHandler(http.MethodGet,locationHandler.GetLocation)(w,r)})
 	mux.Handle("/api/v1/quotations", middleware.AuthMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){if r.Method==http.MethodPost{quotationHandler.Finalize(w,r);return};if r.Method==http.MethodGet{quotationHandler.List(w,r);return};http.Error(w,"method not allowed",405)})))
 	mux.HandleFunc("/api/v1/quotations/",func(w http.ResponseWriter,r *http.Request){if r.Method==http.MethodPost&&strings.HasSuffix(r.URL.Path,"/respond"){middleware.AuthMiddleware("customer")(http.HandlerFunc(quotationHandler.Respond)).ServeHTTP(w,r);return};if r.Method==http.MethodGet{middleware.AuthMiddleware("")(http.HandlerFunc(quotationHandler.Get)).ServeHTTP(w,r);return};http.Error(w,"method not allowed",405)})
 	mux.HandleFunc("/api/v1/public/quotations/",methodHandler(http.MethodGet,quotationHandler.Public))
@@ -146,6 +153,8 @@ func SetupRouter() http.Handler {
 	})))
 	mux.HandleFunc("/api/v1/technicians/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method==http.MethodGet&&strings.HasSuffix(r.URL.Path,"/profile"):
+			technicianHandler.GetPublicProfile(w,r)
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/requests"):
 			middleware.AuthMiddleware("customer")(http.HandlerFunc(technicianHandler.CreateJobRequest)).ServeHTTP(w, r)
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/reviews"):
@@ -158,8 +167,15 @@ func SetupRouter() http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+	mux.Handle("/api/v1/my/portfolio/profile",middleware.AuthMiddleware("technician")(methodHandler(http.MethodPut,technicianHandler.UpdatePortfolioProfile)))
+	mux.Handle("/api/v1/my/portfolio/posts",middleware.AuthMiddleware("technician")(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){if r.Method==http.MethodGet{technicianHandler.GetMyPortfolioPosts(w,r);return};if r.Method==http.MethodPost{technicianHandler.CreatePortfolioPost(w,r);return};http.Error(w,"method not allowed",405)})))
+	mux.Handle("/api/v1/my/portfolio/posts/",middleware.AuthMiddleware("technician")(methodHandler(http.MethodPut,technicianHandler.UpdatePortfolioPost)))
 	mux.Handle("/api/v1/my/packages", middleware.AuthMiddleware("isp")(methodHandler(http.MethodPost, ispEndpointsHandler.CreatePackage)))
-	mux.Handle("/api/v1/packages/", middleware.AuthMiddleware("isp")(methodHandler(http.MethodPut, ispEndpointsHandler.UpdatePackage)))
+	mux.Handle("/api/v1/packages/", middleware.AuthMiddleware("isp")(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){if r.Method==http.MethodPut&&strings.HasSuffix(r.URL.Path,"/prices"){ispEndpointsHandler.SetPackageCountyPrice(w,r);return};if r.Method==http.MethodPost&&strings.HasSuffix(r.URL.Path,"/archive"){ispEndpointsHandler.ArchivePackage(w,r);return};if r.Method==http.MethodDelete{ispEndpointsHandler.DeletePackage(w,r);return};if r.Method==http.MethodPut{ispEndpointsHandler.UpdatePackage(w,r);return};http.Error(w,"method not allowed",405)})))
+	mux.Handle("/api/v1/package-reservations",middleware.AuthMiddleware("customer")(methodHandler(http.MethodPost,clientHandler.ReservePackage)))
+	mux.Handle("/api/v1/package-reservations/",middleware.AuthMiddleware("customer")(methodHandler(http.MethodPost,clientHandler.SubscribePackage)))
+	mux.Handle("/api/v1/my/subscriptions",middleware.AuthMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodGet{http.Error(w,"method not allowed",405);return};if currentRole(r.Context())=="isp"{ispEndpointsHandler.ListSubscriptions(w,r);return};if currentRole(r.Context())=="customer"{clientHandler.ListSubscriptions(w,r);return};http.Error(w,"forbidden",403)})))
+	mux.Handle("/api/v1/subscriptions/",middleware.AuthMiddleware("")(methodHandler(http.MethodPut,func(w http.ResponseWriter,r *http.Request){if currentRole(r.Context())=="isp"{ispEndpointsHandler.UpdateSubscription(w,r);return};if currentRole(r.Context())=="customer"{clientHandler.UpdateSubscription(w,r);return};http.Error(w,"forbidden",403)})))
 	mux.Handle("/api/v1/my/coverage", middleware.AuthMiddleware("isp")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet { ispEndpointsHandler.GetCoverageAreas(w, r); return }
 		if r.Method == http.MethodPost { ispEndpointsHandler.AddCoverageArea(w, r); return }
@@ -173,7 +189,8 @@ func SetupRouter() http.Handler {
 	mux.Handle("/api/v1/my/technician-jobs", middleware.AuthMiddleware("technician")(methodHandler(http.MethodGet, technicianHandler.GetJobs)))
 	mux.HandleFunc("/api/v1/jobs/", func(w http.ResponseWriter,r *http.Request){ if r.Method==http.MethodPost && strings.HasSuffix(r.URL.Path,"/apply") { middleware.AuthMiddleware("")(http.HandlerFunc(technicianHandler.ApplyToJob)).ServeHTTP(w,r); return }; if r.Method==http.MethodPut { middleware.AuthMiddleware("")(http.HandlerFunc(technicianHandler.UpdateJobStatus)).ServeHTTP(w,r); return }; http.Error(w,"method not allowed",405) })
 
-	return monitoring.Middleware("api", mux)
+	limiter := middleware.NewRateLimiter(database.GetRedis(), 120, time.Minute)
+	return middleware.RequestLogger(log.Default())(limiter.Middleware(monitoring.Middleware("api", mux)))
 }
 
 func methodHandler(method string, handler http.HandlerFunc) http.HandlerFunc {

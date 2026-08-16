@@ -20,6 +20,8 @@ type SearchMeta struct {
 	Query     string `json:"query,omitempty"`
 	Fallback  bool   `json:"fallback"`   // true when ES was unavailable/failed
 	Degraded  bool   `json:"degraded,omitempty"` // true when results are approximate
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore bool `json:"has_more"`
 }
 
 // Suggestion is a single "did you mean" / autocomplete candidate.
