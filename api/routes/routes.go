@@ -32,6 +32,7 @@ func SetupRouter() http.Handler {
 	location := handlers.NewLocationHandler()
 	quotation := handlers.NewQuotationHandler()
 	reviewAdmin := handlers.NewReviewAdminHandler()
+	smsAdmin := handlers.NewSMSAdminHandler()
 
 	router.GET("/health", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 	router.GET("/readyz", readiness)
@@ -62,6 +63,7 @@ func SetupRouter() http.Handler {
 	api.POST("/quotations", authHandler("", quotation.Finalize))
 	api.GET("/quotations", authHandler("", quotation.List))
 	api.GET("/quotations/:id", authHandler("", quotation.Get))
+	api.GET("/documents/:id/download", authHandler("", quotation.DownloadDocument))
 	api.POST("/quotations/:id/respond", authHandler("customer", quotation.Respond))
 	api.GET("/quotation-units", authHandler("", quotation.Units))
 	api.POST("/quotation-units", authHandler("", quotation.CreateUnit))
@@ -118,6 +120,7 @@ func SetupRouter() http.Handler {
 	api.POST("/admin/approve-deletion", authHandler("admin", admin.ApproveDeletion))
 	api.GET("/admin/reviews", authHandler("admin", reviewAdmin.Pending))
 	api.PUT("/admin/reviews/:id", authHandler("admin", reviewAdmin.Moderate))
+	api.POST("/admin/sms", authHandler("admin", smsAdmin.Send))
 	api.POST("/reviews/:id/report", authHandler("", technician.ReportReview))
 
 	limiter := middleware.NewRateLimiter(database.GetRedis(), 120, time.Minute)

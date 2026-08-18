@@ -191,3 +191,36 @@ func (r *quotationRepository) CanQuoteRequest(requestID, issuerID, customerID st
 	err := r.dbReader.QueryRow(`SELECT EXISTS(SELECT 1 FROM service_requests j WHERE j.id=$1 AND j.customer_id=$3 AND j.deleted_at IS NULL AND (j.target_isp_id=$2 OR j.target_technician_id=$2 OR j.assigned_isp_id=$2 OR j.assigned_technician_id=$2 OR EXISTS(SELECT 1 FROM service_request_applications a WHERE a.request_id=j.id AND a.applicant_id=$2)))`, requestID, issuerID, customerID).Scan(&ok)
 	return ok, err
 }
+
+func (r *quotationRepository) CreateQuotationDocument(document *models.Document) error {
+	tx, err := r.dbWriter.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec(`INSERT INTO documents(id,owner_id,quotation_id,cloudinary_public_id,cloudinary_url,storage_path,file_name,content_type,visibility,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(quotation_id) DO UPDATE SET cloudinary_public_id=EXCLUDED.cloudinary_public_id,cloudinary_url=EXCLUDED.cloudinary_url,storage_path=EXCLUDED.storage_path,file_name=EXCLUDED.file_name`, document.ID, document.OwnerID, document.QuotationID, document.CloudinaryPublicID, document.CloudinaryURL, document.StoragePath, document.FileName, document.ContentType, document.Visibility, document.CreatedAt); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`INSERT INTO document_shares(id,document_id,user_id,permission) SELECT gen_random_uuid(),$1,q.customer_id,'DOWNLOAD' FROM quotations q WHERE q.id=$2 ON CONFLICT(document_id,user_id) DO UPDATE SET permission='DOWNLOAD'`, document.ID, document.QuotationID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *quotationRepository) GetDocumentForUser(documentID, userID string, public bool) (*models.Document, error) {
+	d := &models.Document{}
+	err := r.dbReader.QueryRow(`SELECT d.id,d.owner_id,COALESCE(d.quotation_id::text,''),d.cloudinary_public_id,d.cloudinary_url,d.storage_path,d.file_name,d.content_type,d.visibility,d.created_at FROM documents d WHERE d.id=$1 AND (d.visibility='PUBLIC' AND $2 OR d.owner_id=$3 OR EXISTS(SELECT 1 FROM document_shares s WHERE s.document_id=d.id AND s.user_id=$3))`, documentID, public, userID).Scan(&d.ID, &d.OwnerID, &d.QuotationID, &d.CloudinaryPublicID, &d.CloudinaryURL, &d.StoragePath, &d.FileName, &d.ContentType, &d.Visibility, &d.CreatedAt)
+	return d, err
+}
+
+func (r *quotationRepository) GetDocumentForQuotation(quotationID, userID string) (*models.Document, error) {
+	d := &models.Document{}
+	err := r.dbReader.QueryRow(`SELECT d.id,d.owner_id,COALESCE(d.quotation_id::text,''),d.cloudinary_public_id,d.cloudinary_url,d.storage_path,d.file_name,d.content_type,d.visibility,d.created_at FROM documents d WHERE d.quotation_id=$1 AND (d.owner_id=$2 OR EXISTS(SELECT 1 FROM document_shares s WHERE s.document_id=d.id AND s.user_id=$2))`, quotationID, userID).Scan(&d.ID, &d.OwnerID, &d.QuotationID, &d.CloudinaryPublicID, &d.CloudinaryURL, &d.StoragePath, &d.FileName, &d.ContentType, &d.Visibility, &d.CreatedAt)
+	return d, err
+}
+
+func (r *quotationRepository) GetDocumentByQuotation(quotationID string) (*models.Document, error) {
+	d := &models.Document{}
+	err := r.dbReader.QueryRow(`SELECT d.id,d.owner_id,COALESCE(d.quotation_id::text,''),d.cloudinary_public_id,d.cloudinary_url,d.storage_path,d.file_name,d.content_type,d.visibility,d.created_at FROM documents d WHERE d.quotation_id=$1`, quotationID).Scan(&d.ID, &d.OwnerID, &d.QuotationID, &d.CloudinaryPublicID, &d.CloudinaryURL, &d.StoragePath, &d.FileName, &d.ContentType, &d.Visibility, &d.CreatedAt)
+	return d, err
+}

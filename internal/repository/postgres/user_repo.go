@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"database/sql"
+	"github.com/lib/pq"
 	"ispilolite/internal/models"
 	"ispilolite/pkg/database"
 	"time"
@@ -10,6 +11,23 @@ import (
 func (r *userRepo) CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error {
 	_, err := r.dbWriter.Exec(`INSERT INTO auth_sessions (id,user_id,token_hash,expires_at,created_at,last_used_at) VALUES ($1,$2,$3,$4,now(),now())`, sessionID, userID, tokenHash, expiresAt)
 	return err
+}
+
+func (r *userRepo) ListUsersForMessaging(role string, userIDs []string) ([]*models.User, error) {
+	rows, err := r.dbReader.Query(`SELECT id,phone,name,role FROM users WHERE status='active' AND phone<>'' AND ($1='' OR role=$1) AND (cardinality($2::uuid[])=0 OR id=ANY($2::uuid[])) ORDER BY id`, role, pq.Array(userIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := []*models.User{}
+	for rows.Next() {
+		user := &models.User{}
+		if err := rows.Scan(&user.ID, &user.Phone, &user.Name, &user.Role); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, rows.Err()
 }
 func (r *userRepo) RefreshSessionActive(sessionID, tokenHash string) (bool, error) {
 	var ok bool

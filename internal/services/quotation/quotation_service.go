@@ -168,6 +168,10 @@ func (s *Service) GetForUser(id, userID, role string) (*models.Quotation, error)
 	if q.IssuerID != userID && q.CustomerID != userID {
 		return nil, ErrForbidden
 	}
+	if document, err := s.quotations.GetDocumentForQuotation(q.ID, userID); err == nil {
+		document.DownloadURL = "/api/v1/documents/" + document.ID + "/download"
+		q.Document = document
+	}
 	return q, nil
 }
 func (s *Service) GetPublic(code string) (*models.Quotation, error) {
@@ -175,7 +179,20 @@ func (s *Service) GetPublic(code string) (*models.Quotation, error) {
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	if document, err := s.quotations.GetDocumentByQuotation(q.ID); err == nil {
+		document.DownloadURL = "/api/v1/documents/" + document.ID + "/download"
+		q.Document = document
+	}
 	return q, nil
+}
+
+func (s *Service) GetDocument(documentID, userID string, public bool) (*models.Document, error) {
+	d, err := s.quotations.GetDocumentForUser(documentID, userID, public)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	d.DownloadURL = "/api/v1/documents/" + d.ID + "/download"
+	return d, nil
 }
 func (s *Service) List(userID, role, status string, limit int) ([]*models.Quotation, error) {
 	if limit <= 0 || limit > 100 {

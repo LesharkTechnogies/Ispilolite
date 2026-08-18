@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -190,11 +191,15 @@ func (s *AuthService) IssueOTP(userID string) (string, int, error) {
 	}
 
 	// Delivery failures must not leave a dangling OTP the caller can't receive.
-	if s.notifier != nil {
-		if err := s.notifier.Send(user.Phone, "Your Ispilo Lite verification code is "+code+". It expires in 5 minutes."); err != nil {
-			_ = s.cacheRepo.DeleteOTP(userID)
-			return "", 0, fmt.Errorf("failed to deliver OTP: %w", err)
-		}
+	if s.notifier == nil {
+		_ = s.cacheRepo.DeleteOTP(userID)
+		return "", 0, fmt.Errorf("SMS sender is not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := s.notifier.Send(ctx, notification.Message{To: user.Phone, Subject: "Verification code", Body: "Your Ispilo Lite verification code is " + code + ". It expires in 5 minutes."}); err != nil {
+		_ = s.cacheRepo.DeleteOTP(userID)
+		return "", 0, fmt.Errorf("failed to deliver OTP: %w", err)
 	}
 
 	return code, int(s.otpTTL.Seconds()), nil

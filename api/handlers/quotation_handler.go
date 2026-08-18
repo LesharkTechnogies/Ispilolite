@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -53,6 +54,25 @@ func (h *QuotationHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondWithJSON(w, 200, dto.Response{Success: true, Data: q})
+}
+
+func (h *QuotationHandler) DownloadDocument(w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r.URL.Path, "/api/v1/documents/")
+	id = strings.TrimSuffix(id, "/download")
+	document, err := h.service.GetDocument(id, userIDFromContext(r.Context()), false)
+	if err != nil {
+		h.respondError(w, err)
+		return
+	}
+	file, err := os.Open(document.StoragePath)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "document file not found")
+		return
+	}
+	defer file.Close()
+	w.Header().Set("Content-Type", document.ContentType)
+	w.Header().Set("Content-Disposition", `inline; filename="`+document.FileName+`"`)
+	http.ServeContent(w, r, document.FileName, document.CreatedAt, file)
 }
 func (h *QuotationHandler) Respond(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/quotations/")

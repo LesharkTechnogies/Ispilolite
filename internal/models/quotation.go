@@ -42,6 +42,21 @@ type Quotation struct {
 	UpdatedAt        time.Time         `json:"updated_at" db:"updated_at"`
 	FinalizedAt      time.Time         `json:"finalized_at" db:"finalized_at"`
 	ExpiresAt        *time.Time        `json:"expires_at,omitempty" db:"expires_at"`
+	Document         *Document         `json:"document,omitempty" db:"-"`
+}
+
+type Document struct {
+	ID                 string    `json:"id"`
+	OwnerID            string    `json:"owner_id"`
+	QuotationID        string    `json:"quotation_id,omitempty"`
+	CloudinaryPublicID string    `json:"-"`
+	CloudinaryURL      string    `json:"-"`
+	StoragePath        string    `json:"-"`
+	FileName           string    `json:"file_name"`
+	ContentType        string    `json:"content_type"`
+	Visibility         string    `json:"visibility"`
+	CreatedAt          time.Time `json:"created_at"`
+	DownloadURL        string    `json:"download_url,omitempty"`
 }
 
 type QuotationItem struct {

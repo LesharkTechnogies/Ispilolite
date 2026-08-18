@@ -38,14 +38,15 @@ This checklist reflects the current repository after the location-learning, job,
 - [x] Add PostgreSQL connection health, lock, slow-query, and replication-lag dashboards.
 - [x] Add distributed tracing with OpenTelemetry and Jaeger.
 - [x] Add RabbitMQ connection recovery, consumer restart supervision, and DLQ replay tooling.
-- [ ] Add real FCM, SMS, email, and push provider adapters behind the notification webhook boundary.
+- [x] Add Talksasa SMS provider for OTP, hashed transactional messages, and admin-targeted SMS.
+- [ ] Add real FCM, email, and push provider adapters behind the notification webhook boundary.
 - [ ] Add idempotency keys for customer requests, quotation finalization, applications, and payments.
 - [ ] Add API authentication key rotation and refresh-token revocation for all sessions on logout/password change.
 - [ ] Add admin APIs for tax rates, system units, business profiles, package moderation, and audit logs.
-- [ ] Add PDF rendering/storage and public quotation download endpoints.
+- [x] Add PDF rendering/storage and quotation download endpoints through the authorized Go API.
 - [ ] Add quotation payment verification and watermark entitlement checks.
 - [ ] Add ISP package inventory/capacity enforcement when a package is sold.
-- [ ] Add package versioning so historical customer subscriptions retain their original commercial terms.
+- [x] Add package versioning so historical customer subscriptions retain their original commercial terms.
 
 ## Medium Priority
 

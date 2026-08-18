@@ -13,6 +13,7 @@ type UserRepository interface {
 	UpdateUser(user *models.User) error
 	GetTechniciansByISPID(ispID string) ([]*models.User, error)
 	GetUsersByStatus(status string) ([]*models.User, error)
+	ListUsersForMessaging(role string, userIDs []string) ([]*models.User, error)
 	RequestDeleteUser(userID string, status string) error
 	SanitizeAndDeleteUser(userID string) error
 	CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error
@@ -141,6 +142,10 @@ type QuotationRepository interface {
 	CreateUnit(unit *models.QuotationUnit, issuerID string) error
 	GetTaxRate(id string) (*models.TaxRate, error)
 	CanQuoteRequest(requestID, issuerID, customerID string) (bool, error)
+	GetDocumentForUser(documentID, userID string, public bool) (*models.Document, error)
+	GetDocumentForQuotation(quotationID, userID string) (*models.Document, error)
+	GetDocumentByQuotation(quotationID string) (*models.Document, error)
+	CreateQuotationDocument(document *models.Document) error
 }
 
 type CacheRepository interface {
