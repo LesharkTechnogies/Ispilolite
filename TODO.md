@@ -28,29 +28,13 @@ This checklist reflects the current repository after the location-learning, job,
 - [x] Redis session repository for cached user/device sessions.
 - [ x] Add database migration version tracking instead of executing every SQL file on startup.
 - [ x] Add database backup, restore, retention, and disaster-recovery procedures.
-
-## High Priority Production Work
-
-- [ ] Add integration tests against PostgreSQL for all migrations and transaction paths.
-- [ ] Add unit tests for quotation calculations, discounts, VAT inclusive/exclusive, package filters, and job assignment races.
-- [ ] Add API contract tests for Flutter payloads and error responses.
-
 - [x] Add PostgreSQL connection health, lock, slow-query, and replication-lag dashboards.
 - [x] Add distributed tracing with OpenTelemetry and Jaeger.
 - [x] Add RabbitMQ connection recovery, consumer restart supervision, and DLQ replay tooling.
 - [x] Add Talksasa SMS provider for OTP, hashed transactional messages, and admin-targeted SMS.
 - [ ] Add real FCM, email, and push provider adapters behind the notification webhook boundary.
-- [ ] Add idempotency keys for customer requests, quotation finalization, applications, and payments.
-- [ ] Add API authentication key rotation and refresh-token revocation for all sessions on logout/password change.
-- [ ] Add admin APIs for tax rates, system units, business profiles, package moderation, and audit logs.
-- [x] Add PDF rendering/storage and quotation download endpoints through the authorized Go API.
-- [ ] Add quotation payment verification and watermark entitlement checks.
-- [ ] Add ISP package inventory/capacity enforcement when a package is sold.
-- [x] Add package versioning so historical customer subscriptions retain their original commercial terms.
-
-## Medium Priority
-
-- [x] Add review aggregation updates to ISP/technician rating and review-count columns.
+ - [x] Add package versioning so historical customer subscriptions retain their original commercial terms.
+ - [x] Add review aggregation updates to ISP/technician rating and review-count columns.
 - [x] Add review moderation, abuse reporting, and admin approval workflows.
 - [x] Implement technician profile/posts repositories and public portfolio endpoints.
 - [x] Add location fuzzy aliases and administrative-boundary validation.
@@ -60,6 +44,29 @@ This checklist reflects the current repository after the location-learning, job,
 - [x] Add package archive/delete endpoints and prevent changes to packages referenced by active subscriptions.
 - [x] Add package availability/capacity reservation and subscription lifecycle enforcement.
 - [x] Add WebSocket or SSE delivery for notification updates.
+- [x] Add PDF rendering/storage and quotation download endpoints through the authorized Go API.
+
+Task 3 — add a Postgres health collector emitting those 4 metrics (query pg_stat_activity for waiting locks, long-running queries for slow-query count, pg_last_xact_replay_timestamp for replica lag, ping for up). Small, additive, low-risk, and it makes the existing dashboard light up. [x]
+Task 7 — auto-reconnect, consumer restart supervision, and a DLQ replay command. Medium; modifies a currently-working queue path. [x]
+Task 6 — OpenTelemetry SDK + Jaeger exporter, tracer bootstrap in cmd/auth/main.go, HTTP/DB/queue span instrumentation. Largest, and it needs new Go modules fetched + go.sum regenerated (the Deployment section of the TODO lists that as still-pending, so the toolchain/network state here is uncertain). [x]
+## High Priority Production Work
+
+- [ ] Add integration tests against PostgreSQL for all migrations and transaction paths.
+- [ ] Add unit tests for quotation calculations, discounts, VAT inclusive/exclusive, package filters, and job assignment races.
+- [ ] Add API contract tests for Flutter payloads and error responses.
+
+
+- [ ] Add idempotency keys for customer requests, quotation finalization, applications, and payments.
+- [ ] Add API authentication key rotation and refresh-token revocation for all sessions on logout/password change.
+- [ ] Add admin APIs for tax rates, system units, business profiles, package moderation, and audit logs.
+
+- [ ] Add quotation payment verification and watermark entitlement checks.
+- [ ] Add ISP package inventory/capacity enforcement when a package is sold.
+
+
+## Medium Priority
+
+
 - [ ] Add Grafana dashboards and Prometheus alert rules for p95 latency, error rate, DB saturation, queue depth, and search fallback rate.
 - [ ] Add OpenAPI generation and CI schema compatibility checks.
 
@@ -75,6 +82,3 @@ This checklist reflects the current repository after the location-learning, job,
 - [ ] Configure Prometheus 30-day retention and Grafana persistent storage.
 - [ ] Add Kubernetes readiness/liveness probes and resource limits for every worker.
 
-Task 3 — add a Postgres health collector emitting those 4 metrics (query pg_stat_activity for waiting locks, long-running queries for slow-query count, pg_last_xact_replay_timestamp for replica lag, ping for up). Small, additive, low-risk, and it makes the existing dashboard light up. [x]
-Task 7 — auto-reconnect, consumer restart supervision, and a DLQ replay command. Medium; modifies a currently-working queue path. [x]
-Task 6 — OpenTelemetry SDK + Jaeger exporter, tracer bootstrap in cmd/auth/main.go, HTTP/DB/queue span instrumentation. Largest, and it needs new Go modules fetched + go.sum regenerated (the Deployment section of the TODO lists that as still-pending, so the toolchain/network state here is uncertain). [x]

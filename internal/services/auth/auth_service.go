@@ -315,6 +315,13 @@ func (s *AuthService) Logout(token string) {
 	}
 
 	_ = s.cacheRepo.SetRevokedToken(token, ttl)
+	_ = s.userRepo.RevokeAllRefreshSessions(claims.UserID)
+}
+
+// RevokeAllSessions invalidates every refresh session for a user. Call this
+// after a password change, account recovery, or security-sensitive logout.
+func (s *AuthService) RevokeAllSessions(userID string) error {
+	return s.userRepo.RevokeAllRefreshSessions(userID)
 }
 
 // IsTokenRevoked reports whether a token has been explicitly revoked (e.g. via logout).

@@ -18,6 +18,7 @@ type UserRepository interface {
 	SanitizeAndDeleteUser(userID string) error
 	CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error
 	RefreshSessionActive(sessionID, tokenHash string) (bool, error)
+	RevokeAllRefreshSessions(userID string) error
 }
 
 type ISPRepository interface {

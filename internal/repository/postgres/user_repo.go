@@ -2,10 +2,11 @@ package postgres
 
 import (
 	"database/sql"
+	"time"
+
 	"github.com/lib/pq"
 	"ispilolite/internal/models"
 	"ispilolite/pkg/database"
-	"time"
 )
 
 func (r *userRepo) CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error {
@@ -36,6 +37,11 @@ func (r *userRepo) RefreshSessionActive(sessionID, tokenHash string) (bool, erro
 		return false, nil
 	}
 	return ok, err
+}
+
+func (r *userRepo) RevokeAllRefreshSessions(userID string) error {
+	_, err := r.dbWriter.Exec(`UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, userID)
+	return err
 }
 
 type userRepo struct {

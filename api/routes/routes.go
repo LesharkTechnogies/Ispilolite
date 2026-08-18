@@ -33,6 +33,8 @@ func SetupRouter() http.Handler {
 	quotation := handlers.NewQuotationHandler()
 	reviewAdmin := handlers.NewReviewAdminHandler()
 	smsAdmin := handlers.NewSMSAdminHandler()
+	notificationsHandler := handlers.NewNotificationHandler()
+	criticalAlerts := handlers.NewCriticalAlertHandler()
 
 	router.GET("/health", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 	router.GET("/readyz", readiness)
@@ -111,6 +113,9 @@ func SetupRouter() http.Handler {
 	api.GET("/my/notifications", authHandler("isp", ispEndpoints.GetNotifications))
 	api.PUT("/my/notifications/:id", authHandler("isp", ispEndpoints.ReadNotification))
 	api.GET("/my/notifications/stream", authHandler("", ispEndpoints.StreamNotifications))
+	api.GET("/notifications", authHandler("", notificationsHandler.List))
+	api.PUT("/notifications/:id/read", authHandler("", notificationsHandler.Read))
+	api.GET("/notifications/stream", authHandler("", notificationsHandler.Stream))
 	api.GET("/available-jobs", authHandlerByRole(map[string]http.HandlerFunc{"technician": technician.GetAvailableJobs, "isp": technician.GetAvailableJobs}))
 	api.GET("/my/technician-jobs", authHandler("technician", technician.GetJobs))
 	api.POST("/jobs/:id/apply", authHandler("", technician.ApplyToJob))
@@ -121,6 +126,7 @@ func SetupRouter() http.Handler {
 	api.GET("/admin/reviews", authHandler("admin", reviewAdmin.Pending))
 	api.PUT("/admin/reviews/:id", authHandler("admin", reviewAdmin.Moderate))
 	api.POST("/admin/sms", authHandler("admin", smsAdmin.Send))
+	api.POST("/admin/critical-alerts", authHandler("admin", criticalAlerts.Send))
 	api.POST("/reviews/:id/report", authHandler("", technician.ReportReview))
 
 	limiter := middleware.NewRateLimiter(database.GetRedis(), 120, time.Minute)
