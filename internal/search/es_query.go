@@ -8,32 +8,58 @@ import (
 
 func buildISPQuery(p dto.SearchParams) map[string]interface{} {
 	filters := compact(termFilter("county", p.County), minRatingFilter(p.MinRating))
-	if !p.LocationResolved { filters = append(filters, compact(termFilter("sub_county", p.SubCounty), termFilter("village", p.Village))...) }
-	if p.OnlyActive { filters = append(filters, boolTermFilter("is_active", true)) }
+	if !p.LocationResolved {
+		filters = append(filters, compact(termFilter("sub_county", p.SubCounty), termFilter("village", p.Village))...)
+	}
+	if p.OnlyActive {
+		filters = append(filters, boolTermFilter("is_active", true))
+	}
 	query := map[string]interface{}{"bool": map[string]interface{}{"filter": filters}}
-	if p.LocationResolved { query["bool"].(map[string]interface{})["should"] = compact(matchClause("village", p.Village, 4), matchClause("sub_county", p.SubCounty, 2), matchClause("coverage_areas", p.Village, 4), matchClause("coverage_areas", p.SubCounty, 2)) }
-	if p.Query != "" { query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"multi_match": map[string]interface{}{"query": p.Query, "fields": []string{"name^3", "description", "county", "sub_county", "village", "coverage_areas"}, "fuzziness": "AUTO"}} } else { query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"match_all": map[string]interface{}{}} }
+	if p.LocationResolved {
+		query["bool"].(map[string]interface{})["should"] = compact(matchClause("village", p.Village, 4), matchClause("sub_county", p.SubCounty, 2), matchClause("coverage_areas", p.Village, 4), matchClause("coverage_areas", p.SubCounty, 2))
+	}
+	if p.Query != "" {
+		query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"multi_match": map[string]interface{}{"query": p.Query, "fields": []string{"name^3", "description", "county", "sub_county", "village", "coverage_areas"}, "fuzziness": "AUTO"}}
+	} else {
+		query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"match_all": map[string]interface{}{}}
+	}
 	sort := []interface{}{map[string]interface{}{"rating": "desc"}, map[string]interface{}{"review_count": "desc"}}
-	if p.Sort == "popular" { sort = []interface{}{map[string]interface{}{"review_count": "desc"}, map[string]interface{}{"rating": "desc"}} }
+	if p.Sort == "popular" {
+		sort = []interface{}{map[string]interface{}{"review_count": "desc"}, map[string]interface{}{"rating": "desc"}}
+	}
 	return map[string]interface{}{"from": p.Offset(), "size": p.PageSize, "query": query, "sort": sort, "track_total_hits": true}
 }
 
 func buildTechnicianQuery(p dto.SearchParams) map[string]interface{} {
 	filters := compact(termFilter("county", p.County), minRatingFilter(p.MinRating))
-	if !p.LocationResolved { filters = append(filters, compact(termFilter("sub_county", p.SubCounty), termFilter("village", p.Village))...) }
-	if p.OnlyAvailable { filters = append(filters, boolTermFilter("is_available", true)) }
+	if !p.LocationResolved {
+		filters = append(filters, compact(termFilter("sub_county", p.SubCounty), termFilter("village", p.Village))...)
+	}
+	if p.OnlyAvailable {
+		filters = append(filters, boolTermFilter("is_available", true))
+	}
 	query := map[string]interface{}{"bool": map[string]interface{}{"filter": filters}}
-	if p.LocationResolved { query["bool"].(map[string]interface{})["should"] = compact(matchClause("village", p.Village, 4), matchClause("sub_county", p.SubCounty, 2)) }
-	if p.Query != "" { query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"multi_match": map[string]interface{}{"query": p.Query, "fields": []string{"name^3", "isp_name", "county", "sub_county", "village", "skills", "roles"}, "fuzziness": "AUTO"}} } else { query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"match_all": map[string]interface{}{}} }
+	if p.LocationResolved {
+		query["bool"].(map[string]interface{})["should"] = compact(matchClause("village", p.Village, 4), matchClause("sub_county", p.SubCounty, 2))
+	}
+	if p.Query != "" {
+		query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"multi_match": map[string]interface{}{"query": p.Query, "fields": []string{"name^3", "isp_name", "county", "sub_county", "village", "skills", "roles"}, "fuzziness": "AUTO"}}
+	} else {
+		query["bool"].(map[string]interface{})["must"] = map[string]interface{}{"match_all": map[string]interface{}{}}
+	}
 	sort := []interface{}{map[string]interface{}{"rating": "desc"}, map[string]interface{}{"jobs_done": "desc"}}
-	if p.Sort == "popular" { sort = []interface{}{map[string]interface{}{"jobs_done": "desc"}, map[string]interface{}{"rating": "desc"}} }
+	if p.Sort == "popular" {
+		sort = []interface{}{map[string]interface{}{"jobs_done": "desc"}, map[string]interface{}{"rating": "desc"}}
+	}
 	return map[string]interface{}{"from": p.Offset(), "size": p.PageSize, "query": query, "sort": sort, "track_total_hits": true}
 }
 
 func buildTechnicianNearQuery(p dto.GeoParams) map[string]interface{} {
 	query := buildTechnicianQuery(p.SearchParams)
 	filters := []map[string]interface{}{map[string]interface{}{"geo_distance": map[string]interface{}{"distance": formatKM(p.RadiusKM), "point": map[string]float64{"lat": p.Lat, "lon": p.Lon}}}}
-	if p.OnlyAvailable { filters = append(filters, boolTermFilter("is_available", true)) }
+	if p.OnlyAvailable {
+		filters = append(filters, boolTermFilter("is_available", true))
+	}
 	query["query"] = map[string]interface{}{"bool": map[string]interface{}{"filter": filters}}
 	query["sort"] = []interface{}{map[string]interface{}{"_geo_distance": map[string]interface{}{"point": map[string]float64{"lat": p.Lat, "lon": p.Lon}, "order": "asc", "unit": "km"}}}
 	return query

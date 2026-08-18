@@ -22,13 +22,13 @@ const (
 // This keeps p99 latency low when ES is down: we stop waiting on timeouts and
 // serve from Postgres immediately.
 type circuitBreaker struct {
-	mu           sync.Mutex
-	state        breakerState
-	failures     int
-	threshold    int
-	cooldown     time.Duration
-	openedAt     time.Time
-	now          func() time.Time // injectable clock for tests
+	mu        sync.Mutex
+	state     breakerState
+	failures  int
+	threshold int
+	cooldown  time.Duration
+	openedAt  time.Time
+	now       func() time.Time // injectable clock for tests
 }
 
 func newCircuitBreaker(threshold int, cooldown time.Duration) *circuitBreaker {

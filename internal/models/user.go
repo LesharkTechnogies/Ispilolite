@@ -34,5 +34,5 @@ type User struct {
 	UpdatedAt    time.Time    `json:"updated_at"`
 	ISP_ID       string       `json:"isp_id,omitempty"`
 	Status       string       `json:"status"`
-	AvatarURL  string    `json:"avatar_url" db:"avatar_url"`
+	AvatarURL    string       `json:"avatar_url" db:"avatar_url"`
 }

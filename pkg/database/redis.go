@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-    "github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v8"
 	"gopkg.in/yaml.v2"
 )
 
@@ -61,7 +61,9 @@ func GetRedis() *redis.Client {
 
 // CloseRedis releases Redis resources during graceful shutdown.
 func CloseRedis() error {
-	if RedisClient == nil { return nil }
+	if RedisClient == nil {
+		return nil
+	}
 	err := RedisClient.Close()
 	RedisClient = nil
 	return err

@@ -38,7 +38,9 @@ func (r *PostgresRepository) Healthy(ctx context.Context) bool {
 // SearchISPs matches by name/coverage/area using ILIKE + trigram ranking.
 func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams) (*Page, error) {
 	p, place, err := r.expandLearnedPlace(ctx, p)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var (
 		where []string
 		args  []interface{}
@@ -130,7 +132,9 @@ func (r *PostgresRepository) SearchISPs(ctx context.Context, p dto.SearchParams)
 // skills are stored in join tables (technician_roles, technician_skills).
 func (r *PostgresRepository) SearchTechnicians(ctx context.Context, p dto.SearchParams) (*Page, error) {
 	p, place, err := r.expandLearnedPlace(ctx, p)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var (
 		where []string
 		args  []interface{}

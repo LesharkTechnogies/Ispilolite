@@ -17,7 +17,11 @@ import (
 	"ispilolite/internal/search/index"
 )
 
-type ReindexResult struct { Index string `json:"index"`; Alias string `json:"alias"`; Documents int `json:"documents"` }
+type ReindexResult struct {
+	Index     string `json:"index"`
+	Alias     string `json:"alias"`
+	Documents int    `json:"documents"`
+}
 
 // Config holds the connection settings for the Elasticsearch cluster.
 type Config struct {
@@ -96,8 +100,75 @@ func (c *Client) EnsureIndices(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) EnsureVersionedIndices(ctx context.Context,version string) error{for name,body:=range index.Mappings{versioned:=name+"_v"+version;exists,err:=c.indexExists(ctx,versioned);if err!=nil{return err};if !exists{if err:=c.createIndex(ctx,versioned,body);err!=nil{return err}};alias:=name;actions:=map[string]interface{}{"actions":[]interface{}{map[string]interface{}{"remove":map[string]interface{}{"alias":alias,"index":"*","must_exist":false}},map[string]interface{}{"add":map[string]interface{}{"alias":alias,"index":versioned,"is_write_index":true}}}};payload,_:=json.Marshal(actions);res,err:=c.es.Indices.UpdateAliases(bytes.NewReader(payload),c.es.Indices.UpdateAliases.WithContext(ctx));if err!=nil{return err};if res.IsError(){message:=res.String();res.Body.Close();return fmt.Errorf("update alias %s: %s",alias,message)};res.Body.Close()};return nil}
-func(c *Client) Reindex(ctx context.Context,version string,documents map[string][]map[string]interface{})([]ReindexResult,error){results:=[]ReindexResult{};for name,docs:=range documents{versioned:=name+"_v"+version;exists,err:=c.indexExists(ctx,versioned);if err!=nil{return nil,err};if !exists{body:=index.Mappings[name];if err:=c.createIndex(ctx,versioned,body);err!=nil{return nil,err}};bulk:=bytes.Buffer{};for _,doc:=range docs{id,_:=doc["id"].(string);meta:=fmt.Sprintf(`{"index":{"_index":%q,"_id":%q}}`,versioned,id);line,_:=json.Marshal(doc);bulk.WriteString(meta+"\n");bulk.Write(line);bulk.WriteByte('\n')};if bulk.Len()>0{res,err:=c.es.Bulk(bytes.NewReader(bulk.Bytes()),c.es.Bulk.WithContext(ctx));if err!=nil{return nil,err};if res.IsError(){res.Body.Close();return nil,fmt.Errorf("bulk reindex %s: %s",name,res.String())};res.Body.Close()};results=append(results,ReindexResult{Index:versioned,Alias:name,Documents:len(docs)})};if err:=c.EnsureVersionedIndices(ctx,version);err!=nil{return nil,err};return results,nil}
+func (c *Client) EnsureVersionedIndices(ctx context.Context, version string) error {
+	for name, body := range index.Mappings {
+		versioned := name + "_v" + version
+		exists, err := c.indexExists(ctx, versioned)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			if err := c.createIndex(ctx, versioned, body); err != nil {
+				return err
+			}
+		}
+		alias := name
+		actions := map[string]interface{}{"actions": []interface{}{map[string]interface{}{"remove": map[string]interface{}{"alias": alias, "index": "*", "must_exist": false}}, map[string]interface{}{"add": map[string]interface{}{"alias": alias, "index": versioned, "is_write_index": true}}}}
+		payload, _ := json.Marshal(actions)
+		res, err := c.es.Indices.UpdateAliases(bytes.NewReader(payload), c.es.Indices.UpdateAliases.WithContext(ctx))
+		if err != nil {
+			return err
+		}
+		if res.IsError() {
+			message := res.String()
+			res.Body.Close()
+			return fmt.Errorf("update alias %s: %s", alias, message)
+		}
+		res.Body.Close()
+	}
+	return nil
+}
+func (c *Client) Reindex(ctx context.Context, version string, documents map[string][]map[string]interface{}) ([]ReindexResult, error) {
+	results := []ReindexResult{}
+	for name, docs := range documents {
+		versioned := name + "_v" + version
+		exists, err := c.indexExists(ctx, versioned)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			body := index.Mappings[name]
+			if err := c.createIndex(ctx, versioned, body); err != nil {
+				return nil, err
+			}
+		}
+		bulk := bytes.Buffer{}
+		for _, doc := range docs {
+			id, _ := doc["id"].(string)
+			meta := fmt.Sprintf(`{"index":{"_index":%q,"_id":%q}}`, versioned, id)
+			line, _ := json.Marshal(doc)
+			bulk.WriteString(meta + "\n")
+			bulk.Write(line)
+			bulk.WriteByte('\n')
+		}
+		if bulk.Len() > 0 {
+			res, err := c.es.Bulk(bytes.NewReader(bulk.Bytes()), c.es.Bulk.WithContext(ctx))
+			if err != nil {
+				return nil, err
+			}
+			if res.IsError() {
+				res.Body.Close()
+				return nil, fmt.Errorf("bulk reindex %s: %s", name, res.String())
+			}
+			res.Body.Close()
+		}
+		results = append(results, ReindexResult{Index: versioned, Alias: name, Documents: len(docs)})
+	}
+	if err := c.EnsureVersionedIndices(ctx, version); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
 
 func (c *Client) indexExists(ctx context.Context, name string) (bool, error) {
 	res, err := c.es.Indices.Exists([]string{name}, c.es.Indices.Exists.WithContext(ctx))

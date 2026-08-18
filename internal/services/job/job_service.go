@@ -28,16 +28,22 @@ func NewISPService(repo ISPRepository) *ISPService { return &ISPService{repo: re
 func (s *ISPService) GetISPs(r *http.Request) (*dto.SearchResult, error) {
 	params := dto.ParseSearchParams(r)
 	isps, total, err := s.repo.GetISPs(r.Context(), params.PageSize, params.Offset())
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	items := make([]dto.ISPProfileResponse, len(isps))
-	for i := range isps { items[i] = ispResponse(&isps[i]) }
+	for i := range isps {
+		items[i] = ispResponse(&isps[i])
+	}
 	return &dto.SearchResult{Items: items, Meta: dto.SearchMeta{Total: total, Page: params.Page, PageSize: params.PageSize, Source: "postgres"}}, nil
 }
 
 func (s *ISPService) GetISPByID(ctx context.Context, id string) (*dto.ISPProfileResponse, error) {
 	isp, err := s.repo.GetISPByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) { return nil, errors.New("not found") }
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("not found")
+		}
 		return nil, err
 	}
 	response := ispResponse(isp)
@@ -52,9 +58,13 @@ func ispResponse(isp *models.ISP) dto.ISPProfileResponse {
 	for _, loc := range locations {
 		switch loc.Type {
 		case "county":
-			if county == "" { county = loc.Name }
+			if county == "" {
+				county = loc.Name
+			}
 		case "sub_county":
-			if subCounty == "" { subCounty = loc.Name }
+			if subCounty == "" {
+				subCounty = loc.Name
+			}
 		case "village":
 			villages = append(villages, loc.Name)
 		}

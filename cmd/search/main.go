@@ -26,7 +26,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -35,16 +34,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/XSAM/otelsql"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 
 	"ispilolite/api/searchapi"
 	"ispilolite/internal/search"
 	"ispilolite/pkg/monitoring"
+	"ispilolite/pkg/telemetry"
 )
 
 func main() {
 	logger := log.New(os.Stdout, "[search] ", log.LstdFlags|log.Lmsgprefix)
+	shutdownTelemetry, err := telemetry.Setup(context.Background(), "ispilolite-search")
+	if err != nil {
+		logger.Fatalf("telemetry startup: %v", err)
+	}
+	defer shutdownTelemetry(context.Background())
 
 	// --- Elasticsearch (fast path) -----------------------------------------
 	esClient, err := search.NewClient(search.Config{
@@ -72,7 +78,11 @@ func main() {
 				logger.Printf("indices ensured")
 			}
 			if version := strings.TrimSpace(os.Getenv("ES_INDEX_VERSION")); version != "" {
-				if ierr := esClient.EnsureVersionedIndices(bootCtx, version); ierr != nil { logger.Printf("WARN could not migrate versioned indices: %v", ierr) } else { logger.Printf("versioned index aliases migrated to v%s", version) }
+				if ierr := esClient.EnsureVersionedIndices(bootCtx, version); ierr != nil {
+					logger.Printf("WARN could not migrate versioned indices: %v", ierr)
+				} else {
+					logger.Printf("versioned index aliases migrated to v%s", version)
+				}
 			}
 		}
 	}
@@ -83,7 +93,7 @@ func main() {
 	// --- Postgres (fallback) ------------------------------------------------
 	var pgRepo *search.PostgresRepository
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
-		db, derr := sql.Open("postgres", dsn)
+		db, derr := otelsql.Open("postgres", dsn)
 		if derr != nil {
 			logger.Fatalf("open postgres: %v", derr)
 		}

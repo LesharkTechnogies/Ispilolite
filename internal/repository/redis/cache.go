@@ -27,7 +27,9 @@ func (r *CacheRepo) DeleteOTP(userID string) error {
 
 func (r *CacheRepo) Set(key string, value interface{}, expiration time.Duration) error {
 	encoded, err := json.Marshal(value)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return r.client.Set(context.Background(), key, encoded, expiration).Err()
 }
 

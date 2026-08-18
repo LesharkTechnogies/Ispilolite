@@ -149,11 +149,31 @@ func (h *LocationHandler) SubmitLocation(w http.ResponseWriter, r *http.Request)
 
 func (h *LocationHandler) ListCountyLocations(w http.ResponseWriter, r *http.Request) {
 	county := strings.TrimSpace(r.URL.Query().Get("county"))
-	if county == "" { respondWithError(w, http.StatusBadRequest, "county is required"); return }
+	if county == "" {
+		respondWithError(w, http.StatusBadRequest, "county is required")
+		return
+	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	locations, err := h.locationService.ListCountyLocations(county, limit)
-	if err != nil { respondWithError(w, http.StatusInternalServerError, "failed to list county locations"); return }
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to list county locations")
+		return
+	}
 	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"county": county, "places": locations}})
 }
 
-func(h *LocationHandler)AddAlias(w http.ResponseWriter,r *http.Request){id:=pathParam(r.URL.Path,"/api/v1/geo/locations/");id=strings.TrimSuffix(id,"/aliases");var req dto.LocationAliasRequest;if id==""||decodeJSON(w,r,&req)!=nil{respondWithError(w,400,"invalid alias");return};alias,err:=h.locationService.AddAlias(id,userIDFromContext(r.Context()),req.Alias);if err!=nil{respondWithError(w,400,err.Error());return};respondWithJSON(w,201,dto.Response{Success:true,Data:alias})}
+func (h *LocationHandler) AddAlias(w http.ResponseWriter, r *http.Request) {
+	id := pathParam(r.URL.Path, "/api/v1/geo/locations/")
+	id = strings.TrimSuffix(id, "/aliases")
+	var req dto.LocationAliasRequest
+	if id == "" || decodeJSON(w, r, &req) != nil {
+		respondWithError(w, 400, "invalid alias")
+		return
+	}
+	alias, err := h.locationService.AddAlias(id, userIDFromContext(r.Context()), req.Alias)
+	if err != nil {
+		respondWithError(w, 400, err.Error())
+		return
+	}
+	respondWithJSON(w, 201, dto.Response{Success: true, Data: alias})
+}

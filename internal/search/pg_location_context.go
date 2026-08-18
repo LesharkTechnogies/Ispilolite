@@ -45,8 +45,12 @@ func (r *PostgresRepository) expandLearnedPlace(ctx context.Context, p dto.Searc
 		return p, nil, err
 	}
 
-	if p.County == "" { p.County = place.County }
-	if p.SubCounty == "" { p.SubCounty = place.SubCounty }
+	if p.County == "" {
+		p.County = place.County
+	}
+	if p.SubCounty == "" {
+		p.SubCounty = place.SubCounty
+	}
 	if p.Village == "" && (place.Type == models.LocationVillage || place.Type == models.LocationWard) {
 		p.Village = place.Name
 	}

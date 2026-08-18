@@ -6,77 +6,124 @@ import (
 	"fmt"
 	"time"
 
-	"ispilolite/internal/models"
-	"ispilolite/internal/services/job"
-
 	"github.com/go-redis/redis/v8"
+	"ispilolite/internal/models"
 )
 
+// JobRepository mirrors the exported methods on postgres.JobRepository so a
+// *postgres.JobRepository can be passed anywhere this interface is required.
+type JobRepository interface {
+	CreateJobRequest(job *models.JobRequest) error
+	GetJobRequestByID(id string) (*models.JobRequest, error)
+	ListForCustomer(id, status string) ([]*models.JobRequest, error)
+	ListForTechnician(id, status string) ([]*models.JobRequest, error)
+	ListAvailable(county, town, serviceType string) ([]*models.JobRequest, error)
+	ApplyToJob(a *models.JobApplication) error
+	ListApplications(requestID, customerID string) ([]*models.JobApplication, error)
+	AssignApplication(requestID, customerID, applicationID string) (*models.JobRequest, error)
+	SetAvailability(id, customerID string, available bool) error
+	DeleteJobRequest(id, customerID string) error
+	UpdateJobStatus(id, actor, status string) error
+}
+
+var _ JobRepository = (*CachedJobRepository)(nil)
+
 type CachedJobRepository struct {
-	next       job.JobRepository
+	next       JobRepository
 	redis      *redis.Client
 	expiration time.Duration
 }
 
-func NewCachedJobRepository(next job.JobRepository, redisClient *redis.Client) *CachedJobRepository {
-	return &CachedJobRepository{
-		next:       next,
-		redis:      redisClient,
-		expiration: time.Minute * 5, // 5 minute cache
-	}
+func NewCachedJobRepository(next JobRepository, redisClient *redis.Client) *CachedJobRepository {
+	return &CachedJobRepository{next: next, redis: redisClient, expiration: 5 * time.Minute}
 }
 
-// GetISPs checks cache first, then falls back to the database.
-func (r *CachedJobRepository) GetISPs(ctx context.Context, limit, offset int) ([]models.ISP, int, error) {
-	key := fmt.Sprintf("isps:limit:%d:offset:%d", limit, offset)
-
-	val, err := r.redis.Get(ctx, key).Result()
-	if err == nil {
-		var cachedResult struct {
-			ISPs  []models.ISP
-			Total int
-		}
-		if json.Unmarshal([]byte(val), &cachedResult) == nil {
-			return cachedResult.ISPs, cachedResult.Total, nil
+func (r *CachedJobRepository) GetJobRequestByID(id string) (*models.JobRequest, error) {
+	key := fmt.Sprintf("job:%s", id)
+	if r.redis != nil {
+		if value, err := r.redis.Get(context.Background(), key).Result(); err == nil {
+			var job models.JobRequest
+			if json.Unmarshal([]byte(value), &job) == nil {
+				return &job, nil
+			}
 		}
 	}
 
-	isps, total, err := r.next.GetISPs(ctx, limit, offset)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	data, err := json.Marshal(struct {
-		ISPs  []models.ISP
-		Total int
-	}{ISPs: isps, Total: total})
-	if err == nil {
-		r.redis.Set(ctx, key, data, r.expiration)
-	}
-
-	return isps, total, nil
-}
-
-// GetISPByID checks cache first, then falls back to the database.
-func (r *CachedJobRepository) GetISPByID(ctx context.Context, id string) (*models.ISP, error) {
-	key := fmt.Sprintf("isp:%s", id)
-
-	val, err := r.redis.Get(ctx, key).Result()
-	if err == nil {
-		var isp models.ISP
-		if json.Unmarshal([]byte(val), &isp) == nil {
-			return &isp, nil
-		}
-	}
-
-	isp, err := r.next.GetISPByID(ctx, id)
+	job, err := r.next.GetJobRequestByID(id)
 	if err != nil {
 		return nil, err
 	}
-
-	if data, err := json.Marshal(isp); err == nil {
-		r.redis.Set(ctx, key, data, r.expiration)
+	if r.redis != nil {
+		if value, err := json.Marshal(job); err == nil {
+			_ = r.redis.Set(context.Background(), key, value, r.expiration).Err()
+		}
 	}
+	return job, nil
+}
 
-	return isp, nil
+func (r *CachedJobRepository) invalidate(id string) {
+	if r.redis == nil {
+		return
+	}
+	_ = r.redis.Del(context.Background(), "job:"+id).Err()
+}
+
+func (r *CachedJobRepository) CreateJobRequest(job *models.JobRequest) error {
+	if err := r.next.CreateJobRequest(job); err != nil {
+		return err
+	}
+	r.invalidate(job.ID)
+	return nil
+}
+
+func (r *CachedJobRepository) ListForCustomer(id, status string) ([]*models.JobRequest, error) {
+	return r.next.ListForCustomer(id, status)
+}
+
+func (r *CachedJobRepository) ListForTechnician(id, status string) ([]*models.JobRequest, error) {
+	return r.next.ListForTechnician(id, status)
+}
+
+func (r *CachedJobRepository) ListAvailable(county, town, serviceType string) ([]*models.JobRequest, error) {
+	return r.next.ListAvailable(county, town, serviceType)
+}
+
+func (r *CachedJobRepository) ApplyToJob(application *models.JobApplication) error {
+	return r.next.ApplyToJob(application)
+}
+
+func (r *CachedJobRepository) ListApplications(requestID, customerID string) ([]*models.JobApplication, error) {
+	return r.next.ListApplications(requestID, customerID)
+}
+
+func (r *CachedJobRepository) AssignApplication(requestID, customerID, applicationID string) (*models.JobRequest, error) {
+	job, err := r.next.AssignApplication(requestID, customerID, applicationID)
+	if err == nil {
+		r.invalidate(requestID)
+	}
+	return job, err
+}
+
+func (r *CachedJobRepository) SetAvailability(id, customerID string, available bool) error {
+	if err := r.next.SetAvailability(id, customerID, available); err != nil {
+		return err
+	}
+	r.invalidate(id)
+	return nil
+}
+
+func (r *CachedJobRepository) DeleteJobRequest(id, customerID string) error {
+	if err := r.next.DeleteJobRequest(id, customerID); err != nil {
+		return err
+	}
+	r.invalidate(id)
+	return nil
+}
+
+func (r *CachedJobRepository) UpdateJobStatus(id, actor, status string) error {
+	if err := r.next.UpdateJobStatus(id, actor, status); err != nil {
+		return err
+	}
+	r.invalidate(id)
+	return nil
 }

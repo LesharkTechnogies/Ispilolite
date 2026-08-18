@@ -87,7 +87,9 @@ func (s *AuthService) CreateUser(req dto.RegisterRequest) (*models.User, error) 
 	if normalizeRole(req.Role) != "customer" {
 		var err error
 		passwordHash, err = utils.HashPassword(req.Password)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	now := time.Now().UTC()
@@ -134,19 +136,31 @@ func (s *AuthService) AuthenticateWithPassword(phone, password string) (*models.
 	if err != nil || !ok {
 		return nil, ErrInvalidPassword
 	}
-	if user.Role == "customer" { return nil, ErrInvalidPassword }
-	if !user.IsVerified { return nil, ErrAccountUnverified }
+	if user.Role == "customer" {
+		return nil, ErrInvalidPassword
+	}
+	if !user.IsVerified {
+		return nil, ErrAccountUnverified
+	}
 
 	return user, nil
 }
 
 func (s *AuthService) AuthenticateWithUsername(username, password string) (*models.User, error) {
 	user, err := s.userRepo.GetUserByUsername(strings.TrimSpace(username))
-	if err != nil { return nil, ErrInvalidPassword }
-	if user.Role == "customer" { return nil, ErrInvalidPassword }
+	if err != nil {
+		return nil, ErrInvalidPassword
+	}
+	if user.Role == "customer" {
+		return nil, ErrInvalidPassword
+	}
 	ok, err := utils.VerifyPassword(password, user.PasswordHash)
-	if err != nil || !ok { return nil, ErrInvalidPassword }
-	if !user.IsVerified { return nil, ErrAccountUnverified }
+	if err != nil || !ok {
+		return nil, ErrInvalidPassword
+	}
+	if !user.IsVerified {
+		return nil, ErrAccountUnverified
+	}
 	return user, nil
 }
 
@@ -192,8 +206,12 @@ func (s *AuthService) RequestLoginOTP(phone string) (*models.User, int, error) {
 	if err != nil {
 		return nil, 0, ErrPhoneNotRegistered
 	}
-	if !user.IsVerified { return nil, 0, ErrAccountUnverified }
-	if user.Role != "customer" { return nil, 0, ErrInvalidPassword }
+	if !user.IsVerified {
+		return nil, 0, ErrAccountUnverified
+	}
+	if user.Role != "customer" {
+		return nil, 0, ErrInvalidPassword
+	}
 
 	_, expiresIn, err := s.IssueOTP(user.ID)
 	if err != nil {
@@ -238,9 +256,16 @@ func (s *AuthService) GenerateAccessToken(user *models.User) (string, int, error
 // GenerateRefreshToken returns a signed refresh token.
 func (s *AuthService) GenerateRefreshToken(user *models.User) (string, error) {
 	token, _, err := s.generateToken(user, s.refreshTTL, "refresh")
-	if err != nil { return "", err }
-	claims, err := s.parseToken(token); if err != nil { return "", err }
-	if err := s.userRepo.CreateRefreshSession(claims.ID, user.ID, tokenHash(token), time.Unix(claims.Expires, 0)); err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
+	claims, err := s.parseToken(token)
+	if err != nil {
+		return "", err
+	}
+	if err := s.userRepo.CreateRefreshSession(claims.ID, user.ID, tokenHash(token), time.Unix(claims.Expires, 0)); err != nil {
+		return "", err
+	}
 	return token, nil
 }
 
@@ -255,7 +280,9 @@ func (s *AuthService) RefreshAccessToken(refreshToken string) (string, int, erro
 		return "", 0, ErrInvalidToken
 	}
 	active, err := s.userRepo.RefreshSessionActive(claims.ID, tokenHash(refreshToken))
-	if err != nil || !active { return "", 0, ErrInvalidToken }
+	if err != nil || !active {
+		return "", 0, ErrInvalidToken
+	}
 
 	user, err := s.GetUserByID(claims.UserID)
 	if err != nil {
@@ -265,7 +292,9 @@ func (s *AuthService) RefreshAccessToken(refreshToken string) (string, int, erro
 	return s.GenerateAccessToken(user)
 }
 
-func tokenHash(token string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.TrimSpace(token)))) }
+func tokenHash(token string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.TrimSpace(token))))
+}
 
 // Logout revokes a token until its natural expiry.
 func (s *AuthService) Logout(token string) {
@@ -318,7 +347,7 @@ func (s *AuthService) generateToken(user *models.User, ttl time.Duration, tokenU
 		TokenUse:  tokenUse,
 		Issuer:    s.issuer,
 		Subject:   user.ID,
-		Expires: now.Add(ttl).Unix(),
+		Expires:   now.Add(ttl).Unix(),
 		NotBefore: now.Unix(),
 		IssuedAt:  now.Unix(),
 		ID:        utils.GenerateID(),
@@ -345,7 +374,6 @@ func (s *AuthService) parseToken(raw string) (*utils.TokenClaims, error) {
 
 	return claims, nil
 }
-
 
 func generateOTP() (string, error) {
 	buf := make([]byte, 3)

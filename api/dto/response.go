@@ -12,22 +12,22 @@ type APIResponse struct {
 // (and tests) know whether the fast path (elasticsearch) or the fallback
 // (postgres) served the request.
 type SearchMeta struct {
-	Source    string `json:"source"`     // "elasticsearch" | "postgres_fallback"
-	Total     int    `json:"total"`      // total hits (may exceed returned page)
-	Page      int    `json:"page"`       // 1-based page number
-	PageSize  int    `json:"page_size"`  // items per page
-	TookMS    int64  `json:"took_ms"`    // server-side latency in milliseconds
-	Query     string `json:"query,omitempty"`
-	Fallback  bool   `json:"fallback"`   // true when ES was unavailable/failed
-	Degraded  bool   `json:"degraded,omitempty"` // true when results are approximate
+	Source     string `json:"source"`    // "elasticsearch" | "postgres_fallback"
+	Total      int    `json:"total"`     // total hits (may exceed returned page)
+	Page       int    `json:"page"`      // 1-based page number
+	PageSize   int    `json:"page_size"` // items per page
+	TookMS     int64  `json:"took_ms"`   // server-side latency in milliseconds
+	Query      string `json:"query,omitempty"`
+	Fallback   bool   `json:"fallback"`           // true when ES was unavailable/failed
+	Degraded   bool   `json:"degraded,omitempty"` // true when results are approximate
 	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore bool `json:"has_more"`
+	HasMore    bool   `json:"has_more"`
 }
 
 // Suggestion is a single "did you mean" / autocomplete candidate.
 type Suggestion struct {
 	Text  string  `json:"text"`
-	Type  string  `json:"type,omitempty"`  // county, village, isp, technician ...
+	Type  string  `json:"type,omitempty"` // county, village, isp, technician ...
 	Score float64 `json:"score,omitempty"`
 }
 
@@ -40,31 +40,31 @@ type SearchResult struct {
 }
 
 type TokenResponse struct {
-    AccessToken  string `json:"access_token"`
-    RefreshToken string `json:"refresh_token"`
-    TokenType    string `json:"token_type"`
-    ExpiresIn    int    `json:"expires_in"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 type UserProfileResponse struct {
-    ID             string                `json:"id"`
-    Name           string                `json:"name"`
-    Phone          string                `json:"phone"`
-    Email          string                `json:"email"`
-    Role           string                `json:"role"`
-    IsVerified     bool                  `json:"is_verified"`
-    Rating         float64               `json:"rating"`
-    TotalRatings   int                   `json:"total_ratings"`
-    Joined         string                `json:"joined"`
-    Location       *LocationDTO          `json:"location,omitempty"`
-    Statistics     *UserStatisticsDTO    `json:"statistics,omitempty"`
+	ID           string             `json:"id"`
+	Name         string             `json:"name"`
+	Phone        string             `json:"phone"`
+	Email        string             `json:"email"`
+	Role         string             `json:"role"`
+	IsVerified   bool               `json:"is_verified"`
+	Rating       float64            `json:"rating"`
+	TotalRatings int                `json:"total_ratings"`
+	Joined       string             `json:"joined"`
+	Location     *LocationDTO       `json:"location,omitempty"`
+	Statistics   *UserStatisticsDTO `json:"statistics,omitempty"`
 }
 
 type UserStatisticsDTO struct {
-    CompletedInstallations int `json:"completed_installations"`
-    PendingRequests        int `json:"pending_requests"`
-    FavoriteISPs           int `json:"favorite_isps"`
-    FavoriteTechnicians    int `json:"favorite_technicians"`
+	CompletedInstallations int `json:"completed_installations"`
+	PendingRequests        int `json:"pending_requests"`
+	FavoriteISPs           int `json:"favorite_isps"`
+	FavoriteTechnicians    int `json:"favorite_technicians"`
 }
 
 type ISPProfileResponse struct {
@@ -81,26 +81,26 @@ type ISPProfileResponse struct {
 }
 
 type ISPStatisticsDTO struct {
-    CompletedInstallations int `json:"completed_installations"`
-    PendingRequests        int `json:"pending_requests"`
-    TechniciansCount       int `json:"technicians_count"`
+	CompletedInstallations int `json:"completed_installations"`
+	PendingRequests        int `json:"pending_requests"`
+	TechniciansCount       int `json:"technicians_count"`
 }
 
 type TechProfileResponse struct {
-    ID             string                `json:"id"`
-    Name           string                `json:"name"`
-    Phone          string                `json:"phone"`
-    Email          string                `json:"email"`
-    Role           string                `json:"role"`
-    IsVerified     bool                  `json:"is_verified"`
-    Rating         float64               `json:"rating"`
-    TotalRatings   int                   `json:"total_ratings"`
-    Joined         string                `json:"joined"`
-    Location       *LocationDTO          `json:"location,omitempty"`
-    Statistics     *TechStatisticsDTO    `json:"statistics,omitempty"`
+	ID           string             `json:"id"`
+	Name         string             `json:"name"`
+	Phone        string             `json:"phone"`
+	Email        string             `json:"email"`
+	Role         string             `json:"role"`
+	IsVerified   bool               `json:"is_verified"`
+	Rating       float64            `json:"rating"`
+	TotalRatings int                `json:"total_ratings"`
+	Joined       string             `json:"joined"`
+	Location     *LocationDTO       `json:"location,omitempty"`
+	Statistics   *TechStatisticsDTO `json:"statistics,omitempty"`
 }
 
 type TechStatisticsDTO struct {
-    CompletedJobs int `json:"completed_jobs"`
-    PendingJobs   int `json:"pending_jobs"`
+	CompletedJobs int `json:"completed_jobs"`
+	PendingJobs   int `json:"pending_jobs"`
 }

@@ -38,7 +38,9 @@ func userIDFromContext(ctx context.Context) string {
 }
 
 func userRoleFromContext(ctx context.Context) string {
-	if value, ok := ctx.Value("userRole").(string); ok { return value }
+	if value, ok := ctx.Value("userRole").(string); ok {
+		return value
+	}
 	return ""
 }
 

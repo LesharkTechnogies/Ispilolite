@@ -20,8 +20,8 @@ type Claims struct {
 
 var (
 	// jwtKey should be loaded from a secure configuration in a real application.
-	jwtKey []byte
-	issuer string
+	jwtKey            []byte
+	issuer            string
 	revocationChecker func(string) bool
 )
 

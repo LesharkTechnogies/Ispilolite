@@ -22,24 +22,56 @@ type LoginRequest struct {
 	Password string `json:"password,omitempty"`
 }
 
-type ISPProfileRequest struct { Name string `json:"name"`; Description string `json:"description"`; LogoURL string `json:"logo_url"`; CustomerCareNumber string `json:"customer_care_number"`; AvgResponseTime int `json:"avg_response_time"`; AvgPrice float64 `json:"avg_price"` }
-type ISPPackageRequest struct { Name string `json:"name"`; Category string `json:"category"`; SpeedValue float64 `json:"speed_value"`; SpeedUnitID string `json:"speed_unit_id"`; BasePrice float64 `json:"base_price"`; BillingCycle string `json:"billing_cycle"`; CapacityType string `json:"capacity_type"`; CapacityValue float64 `json:"capacity_value,omitempty"`; CapacityUnitID string `json:"capacity_unit_id,omitempty"`; MaxSubscriptions int `json:"max_subscriptions,omitempty"`; Description string `json:"description"`; IsActive *bool `json:"is_active,omitempty"` }
-type ISPPackagePriceRequest struct { County string `json:"county"`; Price float64 `json:"price"` }
-type InstallationStatusRequest struct { Status string `json:"status"`; TechnicianID string `json:"technician_id,omitempty"` }
-type TechnicianInviteRequest struct { Phone string `json:"phone"`; Name string `json:"name"`; Email string `json:"email"`; Username string `json:"username"`; Password string `json:"password"` }
+type ISPProfileRequest struct {
+	Name               string  `json:"name"`
+	Description        string  `json:"description"`
+	LogoURL            string  `json:"logo_url"`
+	CustomerCareNumber string  `json:"customer_care_number"`
+	AvgResponseTime    int     `json:"avg_response_time"`
+	AvgPrice           float64 `json:"avg_price"`
+}
+type ISPPackageRequest struct {
+	Name             string  `json:"name"`
+	Category         string  `json:"category"`
+	SpeedValue       float64 `json:"speed_value"`
+	SpeedUnitID      string  `json:"speed_unit_id"`
+	BasePrice        float64 `json:"base_price"`
+	BillingCycle     string  `json:"billing_cycle"`
+	CapacityType     string  `json:"capacity_type"`
+	CapacityValue    float64 `json:"capacity_value,omitempty"`
+	CapacityUnitID   string  `json:"capacity_unit_id,omitempty"`
+	MaxSubscriptions int     `json:"max_subscriptions,omitempty"`
+	Description      string  `json:"description"`
+	IsActive         *bool   `json:"is_active,omitempty"`
+}
+type ISPPackagePriceRequest struct {
+	County string  `json:"county"`
+	Price  float64 `json:"price"`
+}
+type InstallationStatusRequest struct {
+	Status       string `json:"status"`
+	TechnicianID string `json:"technician_id,omitempty"`
+}
+type TechnicianInviteRequest struct {
+	Phone    string `json:"phone"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 
 type VerifyOTPRequest struct {
-    UserID string `json:"user_id" binding:"required"`
-    OTP    string `json:"otp" binding:"required,len=6"`
+	UserID string `json:"user_id" binding:"required"`
+	OTP    string `json:"otp" binding:"required,len=6"`
 }
 
 type RefreshTokenRequest struct {
-    RefreshToken string `json:"refresh_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 type UpdateProfileRequest struct {
-	Name     string      `json:"name,omitempty"`
-	Email    string      `json:"email,omitempty"`
+	Name     string       `json:"name,omitempty"`
+	Email    string       `json:"email,omitempty"`
 	Location *LocationDTO `json:"location,omitempty"`
 }
 
@@ -53,68 +85,116 @@ type NotificationReadRequest struct {
 }
 
 type LocationSubmitRequest struct {
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"`
-	ParentID string `json:"parent_id,omitempty"`
-	County string `json:"county"`
-	Latitude float64 `json:"lat"`
+	Name      string  `json:"name"`
+	Type      string  `json:"type,omitempty"`
+	ParentID  string  `json:"parent_id,omitempty"`
+	County    string  `json:"county"`
+	Latitude  float64 `json:"lat"`
 	Longitude float64 `json:"lng"`
 }
 
-type CoverageRequest struct { LocationID string `json:"location_id"` }
+type CoverageRequest struct {
+	LocationID string `json:"location_id"`
+}
 
 type JobRequestRequest struct {
-	RequestType string `json:"request_type"`
-	Mode string `json:"mode"`
-	TargetISPID string `json:"target_isp_id,omitempty"`
-	TargetTechnicianID string `json:"target_technician_id,omitempty"`
-	LocationID string `json:"location_id,omitempty"`
-	County string `json:"county"`
-	Town string `json:"town"`
-	Village string `json:"village"`
-	ServiceType string `json:"service_type"`
-	SpeedMbps int `json:"speed_mbps,omitempty"`
-	Description string `json:"description"`
-	Budget float64 `json:"budget"`
-	PreferredDate string `json:"preferred_date,omitempty"`
+	RequestType        string  `json:"request_type"`
+	Mode               string  `json:"mode"`
+	TargetISPID        string  `json:"target_isp_id,omitempty"`
+	TargetTechnicianID string  `json:"target_technician_id,omitempty"`
+	LocationID         string  `json:"location_id,omitempty"`
+	County             string  `json:"county"`
+	Town               string  `json:"town"`
+	Village            string  `json:"village"`
+	ServiceType        string  `json:"service_type"`
+	SpeedMbps          int     `json:"speed_mbps,omitempty"`
+	Description        string  `json:"description"`
+	Budget             float64 `json:"budget"`
+	PreferredDate      string  `json:"preferred_date,omitempty"`
 }
 
-type JobApplicationRequest struct { Message string `json:"message"`; ProposedPrice float64 `json:"proposed_price"` }
-type JobAssignmentRequest struct { ApplicationID string `json:"application_id"` }
-type JobAvailabilityRequest struct { Available bool `json:"available"` }
-type JobRequestStatusRequest struct { Status string `json:"status"` }
+type JobApplicationRequest struct {
+	Message       string  `json:"message"`
+	ProposedPrice float64 `json:"proposed_price"`
+}
+type JobAssignmentRequest struct {
+	ApplicationID string `json:"application_id"`
+}
+type JobAvailabilityRequest struct {
+	Available bool `json:"available"`
+}
+type JobRequestStatusRequest struct {
+	Status string `json:"status"`
+}
 
 type FinalizeQuotationRequest struct {
-	CustomerID string `json:"customer_id"`
-	RequestID string `json:"request_id,omitempty"`
-	CompanyAddress string `json:"company_address,omitempty"`
-	CompanyLogoURL string `json:"company_logo_url,omitempty"`
-	Currency string `json:"currency,omitempty"`
-	Items []QuotationItemRequest `json:"items"`
-	TransportAmount float64 `json:"transport_amount,omitempty"`
-	TaxRateID string `json:"tax_rate_id,omitempty"`
-	TaxMode string `json:"tax_mode,omitempty"`
-	PaymentMethod string `json:"payment_method,omitempty"`
-	PaymentDetails map[string]string `json:"payment_details,omitempty"`
-	Terms []string `json:"terms,omitempty"`
-	Notes string `json:"notes,omitempty"`
-	ExpiresAt string `json:"expires_at,omitempty"`
+	CustomerID      string                 `json:"customer_id"`
+	RequestID       string                 `json:"request_id,omitempty"`
+	CompanyAddress  string                 `json:"company_address,omitempty"`
+	CompanyLogoURL  string                 `json:"company_logo_url,omitempty"`
+	Currency        string                 `json:"currency,omitempty"`
+	Items           []QuotationItemRequest `json:"items"`
+	TransportAmount float64                `json:"transport_amount,omitempty"`
+	TaxRateID       string                 `json:"tax_rate_id,omitempty"`
+	TaxMode         string                 `json:"tax_mode,omitempty"`
+	PaymentMethod   string                 `json:"payment_method,omitempty"`
+	PaymentDetails  map[string]string      `json:"payment_details,omitempty"`
+	Terms           []string               `json:"terms,omitempty"`
+	Notes           string                 `json:"notes,omitempty"`
+	ExpiresAt       string                 `json:"expires_at,omitempty"`
 }
-type QuotationItemRequest struct { Item string `json:"item"`; Description string `json:"description,omitempty"`; UnitID string `json:"unit_id"`; Quantity float64 `json:"quantity"`; UnitPrice float64 `json:"unit_price"`; DiscountType string `json:"discount_type,omitempty"`; DiscountValue float64 `json:"discount_value,omitempty"` }
-type CustomUnitRequest struct { Name string `json:"name"`; SingularName string `json:"singular_name"`; PluralName string `json:"plural_name"`; Symbol string `json:"symbol"` }
-type QuotationStatusRequest struct { Status string `json:"status"` }
-type TechnicianProfileRequest struct { Bio string `json:"bio"`; ExperienceYears int `json:"experience_years"`; PricePerHour float64 `json:"price_per_hour"`; IsAvailable bool `json:"is_available"`; County string `json:"county"`; Town string `json:"town"`; Village string `json:"village"`; Skills []string `json:"skills"` }
-type TechnicianPostRequest struct { Title string `json:"title"`; Description string `json:"description"`; ServiceType string `json:"service_type"`; MediaURLs []string `json:"media_urls"`; Status string `json:"status"` }
-type LocationAliasRequest struct { Alias string `json:"alias"` }
-type PackageSubscriptionRequest struct { PackageID string `json:"package_id"`; County string `json:"county"` }
-type PackageSubscriptionStatusRequest struct { Status string `json:"status"`; EndsAt string `json:"ends_at,omitempty"` }
+type QuotationItemRequest struct {
+	Item          string  `json:"item"`
+	Description   string  `json:"description,omitempty"`
+	UnitID        string  `json:"unit_id"`
+	Quantity      float64 `json:"quantity"`
+	UnitPrice     float64 `json:"unit_price"`
+	DiscountType  string  `json:"discount_type,omitempty"`
+	DiscountValue float64 `json:"discount_value,omitempty"`
+}
+type CustomUnitRequest struct {
+	Name         string `json:"name"`
+	SingularName string `json:"singular_name"`
+	PluralName   string `json:"plural_name"`
+	Symbol       string `json:"symbol"`
+}
+type QuotationStatusRequest struct {
+	Status string `json:"status"`
+}
+type TechnicianProfileRequest struct {
+	Bio             string   `json:"bio"`
+	ExperienceYears int      `json:"experience_years"`
+	PricePerHour    float64  `json:"price_per_hour"`
+	IsAvailable     bool     `json:"is_available"`
+	County          string   `json:"county"`
+	Town            string   `json:"town"`
+	Village         string   `json:"village"`
+	Skills          []string `json:"skills"`
+}
+type TechnicianPostRequest struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	ServiceType string   `json:"service_type"`
+	MediaURLs   []string `json:"media_urls"`
+	Status      string   `json:"status"`
+}
+type LocationAliasRequest struct {
+	Alias string `json:"alias"`
+}
+type PackageSubscriptionRequest struct {
+	PackageID string `json:"package_id"`
+	County    string `json:"county"`
+}
+type PackageSubscriptionStatusRequest struct {
+	Status string `json:"status"`
+	EndsAt string `json:"ends_at,omitempty"`
+}
 
 type UpdateISPProfileRequest struct {
-	Name     string      `json:"name,omitempty"`
-	Email    string      `json:"email,omitempty"`
+	Name     string       `json:"name,omitempty"`
+	Email    string       `json:"email,omitempty"`
 	Location *LocationDTO `json:"location,omitempty"`
 }
-
 
 // ---------------------------------------------------------------------------
 // Search request parsing
@@ -137,10 +217,10 @@ type SearchParams struct {
 	// County / SubCounty / Village scope results to an administrative area.
 	// They can be supplied either in the path (search/isp/{county}) or as
 	// querystring filters.
-	County    string
-	SubCounty string
-	Village   string
-	Sort      string
+	County           string
+	SubCounty        string
+	Village          string
+	Sort             string
 	LocationResolved bool
 	// Role filters technicians (e.g. "installer", "surveyor", "support").
 	Role string
@@ -156,7 +236,7 @@ type SearchParams struct {
 	// Paging.
 	Page     int
 	PageSize int
-	Cursor string
+	Cursor   string
 
 	// Fuzzy toggles typo-tolerant matching. Defaults to true so that
 	// "safricom" still finds "Safaricom". Set ?fuzzy=false for exact.
@@ -231,11 +311,22 @@ func ParseRecommendParams(r *http.Request) RecommendParams {
 // Offset is the zero-based document offset derived from Page/PageSize,
 // used by both the ES `from` parameter and SQL OFFSET.
 func (p SearchParams) Offset() int {
-	if p.Cursor != "" { if raw,err:=base64.RawURLEncoding.DecodeString(p.Cursor);err==nil{if offset,err:=strconv.Atoi(string(raw));err==nil&&offset>=0{return offset}} }
+	if p.Cursor != "" {
+		if raw, err := base64.RawURLEncoding.DecodeString(p.Cursor); err == nil {
+			if offset, err := strconv.Atoi(string(raw)); err == nil && offset >= 0 {
+				return offset
+			}
+		}
+	}
 	return (p.Page - 1) * p.PageSize
 }
 
-func EncodeCursor(offset int) string { if offset < 0 { offset = 0 }; return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(offset))) }
+func EncodeCursor(offset int) string {
+	if offset < 0 {
+		offset = 0
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(offset)))
+}
 
 // ParseSearchParams reads the standard search knobs from an *http.Request.
 // It is tolerant: bad numbers fall back to defaults rather than erroring so a

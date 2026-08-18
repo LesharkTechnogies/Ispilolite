@@ -10,7 +10,7 @@ import (
 	"ispilolite/pkg/database"
 )
 
-type locationRepository struct { dbReader, dbWriter *sql.DB }
+type locationRepository struct{ dbReader, dbWriter *sql.DB }
 
 func NewLocationRepository() *locationRepository {
 	return &locationRepository{dbReader: database.GetReader(), dbWriter: database.GetWriter()}
@@ -22,55 +22,97 @@ func scanLocation(scanner interface{ Scan(...interface{}) error }) (*models.Loca
 	location := &models.Location{}
 	var lat, lon sql.NullFloat64
 	err := scanner.Scan(&location.ID, &location.Name, &location.Type, &location.ParentID, &location.County, &location.SubCounty, &location.Ward, &lat, &lon, &location.Status, &location.IsVerified, &location.SubmissionCount, &location.PopularityScore, &location.CreatedAt)
-	if err != nil { return nil, err }
-	if lat.Valid && lon.Valid { location.Point = &models.GeoPoint{Lat: lat.Float64, Lon: lon.Float64} }
+	if err != nil {
+		return nil, err
+	}
+	if lat.Valid && lon.Valid {
+		location.Point = &models.GeoPoint{Lat: lat.Float64, Lon: lon.Float64}
+	}
 	return location, nil
 }
 
 func (r *locationRepository) CreateLocation(location *models.Location) error {
 	var lat, lon interface{}
-	if location.Point != nil { lat, lon = location.Point.Lat, location.Point.Lon }
+	if location.Point != nil {
+		lat, lon = location.Point.Lat, location.Point.Lon
+	}
 	result, err := r.dbWriter.Exec(`
 		INSERT INTO locations (id, name, type, parent_id, county, latitude, longitude, status, is_verified, submission_count, popularity_score, created_at)
 		VALUES ($1,$2,$3,NULLIF($4,'')::uuid,$5,$6,$7,'pending',false,0,0,$8)
 		ON CONFLICT DO NOTHING`,
 		location.ID, strings.TrimSpace(location.Name), location.Type, location.ParentID, location.County, lat, lon, location.CreatedAt)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	affected, err := result.RowsAffected()
-	if err != nil || affected > 0 { return err }
+	if err != nil || affected > 0 {
+		return err
+	}
 	existing, err := r.FindLocationByName(location.Name, location.Type, location.ParentID)
-	if err != nil { return err }
-	if existing == nil { return errors.New("location insert conflicted but no existing location was found") }
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errors.New("location insert conflicted but no existing location was found")
+	}
 	*location = *existing
 	return nil
 }
 
 func (r *locationRepository) GetLocationByID(id string) (*models.Location, error) {
 	location, err := scanLocation(r.dbReader.QueryRow(`SELECT `+locationColumns+` FROM locations WHERE id=$1`, id))
-	if errors.Is(err, sql.ErrNoRows) { return nil, nil }
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	return location, err
 }
 
 func (r *locationRepository) FindLocationByName(name, kind, parentID string) (*models.Location, error) {
 	location, err := scanLocation(r.dbReader.QueryRow(`SELECT `+locationColumns+` FROM locations WHERE lower(trim(name))=lower(trim($1)) AND type=$2 AND COALESCE(parent_id::text,'')=$3`, name, kind, parentID))
-	if errors.Is(err, sql.ErrNoRows) { return nil, nil }
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	return location, err
 }
 
 func (r *locationRepository) SearchLocations(query, kind string, limit int) ([]*models.Location, error) {
 	rows, err := r.dbReader.Query(`SELECT DISTINCT `+locationColumns+` FROM locations WHERE (name ILIKE '%' || $1 || '%' OR EXISTS(SELECT 1 FROM location_aliases a WHERE a.location_id=locations.id AND a.status='approved' AND a.normalized_alias % lower(trim($1)))) AND ($2='' OR type=$2) ORDER BY is_verified DESC, popularity_score DESC, name LIMIT $3`, query, kind, limit)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	return scanLocations(rows)
 }
 
-func(r *locationRepository)CreateAlias(a *models.LocationAlias)error{_,err:=r.dbWriter.Exec(`INSERT INTO location_aliases(id,location_id,alias,normalized_alias,created_by,status,created_at) VALUES($1,$2,$3,lower(trim($3)),$4,$5,$6) ON CONFLICT(location_id,normalized_alias) DO UPDATE SET alias=EXCLUDED.alias,status=EXCLUDED.status`,a.ID,a.LocationID,a.Alias,a.CreatedBy,a.Status,a.CreatedAt);return err}
-func(r *locationRepository)SearchAliases(query string,limit int)([]*models.Location,error){rows,err:=r.dbReader.Query(`SELECT `+locationColumns+` FROM locations WHERE id IN(SELECT location_id FROM location_aliases WHERE status='approved' AND (normalized_alias ILIKE '%'||lower(trim($1))||'%' OR similarity(normalized_alias,lower(trim($1)))>0.3) ORDER BY similarity(normalized_alias,lower(trim($1))) DESC LIMIT $2) ORDER BY popularity_score DESC`,query,limit);if err!=nil{return nil,err};defer rows.Close();return scanLocations(rows)}
-func(r *locationRepository)ValidateBoundary(parentID string,lat,lon float64)(bool,error){var minLat,maxLat,minLon,maxLon float64;err:=r.dbReader.QueryRow(`SELECT min_lat,max_lat,min_lon,max_lon FROM location_boundaries WHERE location_id=$1`,parentID).Scan(&minLat,&maxLat,&minLon,&maxLon);if err==sql.ErrNoRows{return true,nil};if err!=nil{return false,err};return lat>=minLat&&lat<=maxLat&&lon>=minLon&&lon<=maxLon,nil}
+func (r *locationRepository) CreateAlias(a *models.LocationAlias) error {
+	_, err := r.dbWriter.Exec(`INSERT INTO location_aliases(id,location_id,alias,normalized_alias,created_by,status,created_at) VALUES($1,$2,$3,lower(trim($3)),$4,$5,$6) ON CONFLICT(location_id,normalized_alias) DO UPDATE SET alias=EXCLUDED.alias,status=EXCLUDED.status`, a.ID, a.LocationID, a.Alias, a.CreatedBy, a.Status, a.CreatedAt)
+	return err
+}
+func (r *locationRepository) SearchAliases(query string, limit int) ([]*models.Location, error) {
+	rows, err := r.dbReader.Query(`SELECT `+locationColumns+` FROM locations WHERE id IN(SELECT location_id FROM location_aliases WHERE status='approved' AND (normalized_alias ILIKE '%'||lower(trim($1))||'%' OR similarity(normalized_alias,lower(trim($1)))>0.3) ORDER BY similarity(normalized_alias,lower(trim($1))) DESC LIMIT $2) ORDER BY popularity_score DESC`, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanLocations(rows)
+}
+func (r *locationRepository) ValidateBoundary(parentID string, lat, lon float64) (bool, error) {
+	var minLat, maxLat, minLon, maxLon float64
+	err := r.dbReader.QueryRow(`SELECT min_lat,max_lat,min_lon,max_lon FROM location_boundaries WHERE location_id=$1`, parentID).Scan(&minLat, &maxLat, &minLon, &maxLon)
+	if err == sql.ErrNoRows {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon, nil
+}
 
 func (r *locationRepository) RecordSubmission(submission *models.LocationSubmission) (bool, error) {
 	result, err := r.dbWriter.Exec(`INSERT INTO location_submissions (location_id,user_id,latitude,longitude,created_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (location_id,user_id) DO NOTHING`, submission.LocationID, submission.UserID, submission.Latitude, submission.Longitude, time.Now().UTC())
-	if err != nil { return false, err }
+	if err != nil {
+		return false, err
+	}
 	count, err := result.RowsAffected()
 	return count > 0, err
 }
@@ -88,13 +130,21 @@ func (r *locationRepository) UpdateLocationStats(id string, count int, popularit
 
 func (r *locationRepository) ListLocationsByCounty(county string, limit int) ([]*models.Location, error) {
 	rows, err := r.dbReader.Query(`SELECT `+locationColumns+` FROM locations WHERE type IN ('town','sub_county','ward','village') AND lower(county)=lower($1) ORDER BY type, popularity_score DESC, name LIMIT $2`, county, limit)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	return scanLocations(rows)
 }
 
 func scanLocations(rows *sql.Rows) ([]*models.Location, error) {
 	locations := make([]*models.Location, 0)
-	for rows.Next() { location, err := scanLocation(rows); if err != nil { return nil, err }; locations = append(locations, location) }
+	for rows.Next() {
+		location, err := scanLocation(rows)
+		if err != nil {
+			return nil, err
+		}
+		locations = append(locations, location)
+	}
 	return locations, rows.Err()
 }

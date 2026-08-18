@@ -2,18 +2,19 @@ package database
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
-	"crypto/sha256"
-	"encoding/hex"
-	"strings"
-	"log"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/XSAM/otelsql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"gopkg.in/yaml.v2"
@@ -21,11 +22,15 @@ import (
 
 // NewPostgresConnection creates a new PostgreSQL connection using sqlx.
 func NewPostgresConnection(dsn string) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("postgres", dsn)
+	db, err := otelsql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
-	return db, nil
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return sqlx.NewDb(db, "postgres"), nil
 }
 
 // DBConfig holds the configuration for a single database connection.
@@ -97,15 +102,17 @@ func InitDB(configPath string) error {
 		readerDSN = writerDSN
 	}
 
-	DBWriter, err = sql.Open("postgres", writerDSN)
+	DBWriter, err = otelsql.Open("postgres", writerDSN)
 	if err != nil {
 		return fmt.Errorf("failed to open writer database: %w", err)
 	}
 	fmt.Println("Successfully connected to the writer database.")
 
-	DBReader, err = sql.Open("postgres", readerDSN)
+	DBReader, err = otelsql.Open("postgres", readerDSN)
 	if err != nil {
-		if DBWriter != nil { _ = DBWriter.Close() }
+		if DBWriter != nil {
+			_ = DBWriter.Close()
+		}
 		return fmt.Errorf("failed to open reader database: %w", err)
 	}
 
@@ -119,15 +126,18 @@ func InitDB(configPath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := DBWriter.PingContext(ctx); err != nil {
-		_ = DBWriter.Close(); _ = DBReader.Close()
+		_ = DBWriter.Close()
+		_ = DBReader.Close()
 		return fmt.Errorf("failed to ping writer database: %w", err)
 	}
 	if err := DBReader.PingContext(ctx); err != nil {
-		_ = DBWriter.Close(); _ = DBReader.Close()
+		_ = DBWriter.Close()
+		_ = DBReader.Close()
 		return fmt.Errorf("failed to ping reader database: %w", err)
 	}
 	if err := runMigrations(ctx, getenv("MIGRATIONS_PATH", "migrations")); err != nil {
-		_ = DBWriter.Close(); _ = DBReader.Close()
+		_ = DBWriter.Close()
+		_ = DBReader.Close()
 		return fmt.Errorf("database migrations failed: %w", err)
 	}
 	if err := verifySchema(ctx, DBWriter); err != nil {
@@ -146,48 +156,125 @@ func InitDB(configPath string) error {
 
 func runMigrations(ctx context.Context, dir string) error {
 	conn, err := DBWriter.Conn(ctx)
-	if err != nil { return fmt.Errorf("acquire migration connection: %w", err) }
+	if err != nil {
+		return fmt.Errorf("acquire migration connection: %w", err)
+	}
 	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock(821527390)"); err != nil { return fmt.Errorf("acquire migration lock: %w", err) }
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock(821527390)"); err != nil {
+		return fmt.Errorf("acquire migration lock: %w", err)
+	}
 	defer conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock(821527390)")
-	if _,err:=conn.ExecContext(ctx,`CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);err!=nil{return fmt.Errorf("create schema_migrations: %w",err)}
-	files, err := filepath.Glob(filepath.Join(dir, "*.sql")); if err != nil { return err }
+	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+	files, err := filepath.Glob(filepath.Join(dir, "*.sql"))
+	if err != nil {
+		return err
+	}
 	sort.Strings(files)
-	for _, file := range files { sqlBytes, err := os.ReadFile(file); if err != nil { return err }; migrationSQL:=migrationBody(string(sqlBytes));if migrationSQL==""{continue};version:=filepath.Base(file);sum:=sha256.Sum256(sqlBytes);checksum:=hex.EncodeToString(sum[:]);var existing string;err=conn.QueryRowContext(ctx,`SELECT checksum FROM schema_migrations WHERE version=$1`,version).Scan(&existing);if err==nil{if existing!=checksum{return fmt.Errorf("migration %s changed after being applied",version)};continue};if err!=sql.ErrNoRows{return err};tx,err:=conn.BeginTx(ctx,nil);if err!=nil{return err};if _,err=tx.ExecContext(ctx,migrationSQL);err!=nil{tx.Rollback();return fmt.Errorf("%s: %w",file,err)};if _,err=tx.ExecContext(ctx,`INSERT INTO schema_migrations(version,checksum) VALUES($1,$2)`,version,checksum);err!=nil{tx.Rollback();return err};if err=tx.Commit();err!=nil{return err} }
-	if len(files) == 0 { return fmt.Errorf("no migration files found in %s", dir) }
+	for _, file := range files {
+		sqlBytes, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		migrationSQL := migrationBody(string(sqlBytes))
+		if migrationSQL == "" {
+			continue
+		}
+		version := filepath.Base(file)
+		sum := sha256.Sum256(sqlBytes)
+		checksum := hex.EncodeToString(sum[:])
+		var existing string
+		err = conn.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE version=$1`, version).Scan(&existing)
+		if err == nil {
+			if existing != checksum {
+				return fmt.Errorf("migration %s changed after being applied", version)
+			}
+			continue
+		}
+		if err != sql.ErrNoRows {
+			return err
+		}
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, migrationSQL); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("%s: %w", file, err)
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version,checksum) VALUES($1,$2)`, version, checksum); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no migration files found in %s", dir)
+	}
 	return nil
 }
 
 func migrationBody(raw string) string {
-	lines:=strings.Split(strings.ReplaceAll(raw,"\r\n","\n"),"\n")
-	start,end:=0,len(lines)
-	for start<end&&strings.TrimSpace(lines[start])==""{start++}
-	if start<end&&strings.EqualFold(strings.TrimSpace(lines[start]),"BEGIN;"){start++}
-	for end>start&&strings.TrimSpace(lines[end-1])==""{end--}
-	if end>start&&strings.EqualFold(strings.TrimSpace(lines[end-1]),"COMMIT;"){end--}
-	return strings.TrimSpace(strings.Join(lines[start:end],"\n"))
+	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
+	start, end := 0, len(lines)
+	for start < end && strings.TrimSpace(lines[start]) == "" {
+		start++
+	}
+	if start < end && strings.EqualFold(strings.TrimSpace(lines[start]), "BEGIN;") {
+		start++
+	}
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if end > start && strings.EqualFold(strings.TrimSpace(lines[end-1]), "COMMIT;") {
+		end--
+	}
+	return strings.TrimSpace(strings.Join(lines[start:end], "\n"))
 }
 
 func verifySchema(ctx context.Context, db *sql.DB) error {
 	const q = `SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','isps','installations','locations')`
-	var count int; if err := db.QueryRowContext(ctx, q).Scan(&count); err != nil { return err }; if count < 4 { return fmt.Errorf("expected core tables, found %d/4", count) }; return nil
+	var count int
+	if err := db.QueryRowContext(ctx, q).Scan(&count); err != nil {
+		return err
+	}
+	if count < 4 {
+		return fmt.Errorf("expected core tables, found %d/4", count)
+	}
+	return nil
 }
 
 func loadDotEnv(path string) {
 	data, err := os.ReadFile(path)
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") { continue }
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
 		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 { continue }
+		if len(parts) != 2 {
+			continue
+		}
 		key := strings.TrimSpace(parts[0])
 		value := strings.Trim(strings.TrimSpace(parts[1]), "\"")
-		if key != "" && os.Getenv(key) == "" { _ = os.Setenv(key, value) }
+		if key != "" && os.Getenv(key) == "" {
+			_ = os.Setenv(key, value)
+		}
 	}
 }
 
-func getenv(key, fallback string) string { if value := os.Getenv(key); value != "" { return value }; return fallback }
+func getenv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
 
 // GetWriter returns the database connection for write operations.
 func GetWriter() *sql.DB {
@@ -203,10 +290,14 @@ func GetReader() *sql.DB {
 func CloseDB() error {
 	var firstErr error
 	if DBReader != nil && DBReader != DBWriter {
-		if err := DBReader.Close(); err != nil { firstErr = err }
+		if err := DBReader.Close(); err != nil {
+			firstErr = err
+		}
 	}
 	if DBWriter != nil {
-		if err := DBWriter.Close(); err != nil && firstErr == nil { firstErr = err }
+		if err := DBWriter.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
 	return firstErr
 }

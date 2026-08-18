@@ -146,5 +146,15 @@ func (r *installationRepo) GetInstallationByID(installationID string) (*models.I
 
 func (r *installationRepo) UpdateInstallation(installation *models.Installation) error {
 	result, err := r.dbWriter.Exec(`UPDATE installations SET status=$1, technician_id=$2, updated_at=$3 WHERE id=$4 AND isp_id=$5`, installation.Status, installation.TechnicianID, installation.UpdatedAt, installation.ID, installation.IspID)
-	if err != nil { return err }; affected, err := result.RowsAffected(); if err != nil { return err }; if affected == 0 { return sql.ErrNoRows }; return nil
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

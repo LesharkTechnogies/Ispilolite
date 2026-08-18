@@ -25,7 +25,9 @@ import (
 // when supplied, is a hard filter; finer areas are soft ORDER BY bonuses.
 func (r *PostgresRepository) RecommendISPs(ctx context.Context, p dto.RecommendParams) (*Page, error) {
 	searchParams, place, err := r.expandLearnedPlace(ctx, p.SearchParams)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	p.SearchParams = searchParams
 	var (
 		where []string
@@ -161,6 +163,7 @@ func (r *PostgresRepository) scanISPPage(ctx context.Context, query string, args
 	}
 	return &Page{Items: items, Total: len(items)}, nil
 }
+
 //__CONTINUE_PG_RECOMMEND__
 
 // technicianListSelect is the shared column list + joins used by the technician
@@ -180,7 +183,9 @@ const technicianListSelect = `
 // hard filter; skills/role/area are soft ranking signals.
 func (r *PostgresRepository) RecommendTechnicians(ctx context.Context, p dto.RecommendParams) (*Page, error) {
 	searchParams, place, err := r.expandLearnedPlace(ctx, p.SearchParams)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	p.SearchParams = searchParams
 	var (
 		where []string
@@ -352,4 +357,3 @@ func (r *PostgresRepository) techPage(ctx context.Context, query string, args ..
 	}
 	return &Page{Items: items, Total: len(items)}, nil
 }
-

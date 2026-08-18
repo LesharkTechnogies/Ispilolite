@@ -6,12 +6,72 @@ import (
 	"ispilolite/pkg/database"
 )
 
-type reviewRepo struct{reader,writer *sql.DB}
-func NewReviewRepo()*reviewRepo{return &reviewRepo{database.GetReader(),database.GetWriter()}}
-func(r *reviewRepo)CreateReview(v *models.Review)error{if v.Status==""{v.Status="pending"};_,err:=r.writer.Exec(`INSERT INTO reviews (id,target_id,target_type,user_id,rating,comment,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)`,v.ID,v.TargetID,v.TargetType,v.UserID,v.Rating,v.Comment,v.Status,v.CreatedAt);return err}
-func(r *reviewRepo)GetReviewsByTarget(id,kind string)([]*models.Review,error){rows,err:=r.reader.Query(`SELECT id,target_id,target_type,COALESCE(user_id::text,''),rating,comment,status,moderation_note,created_at,updated_at FROM reviews WHERE target_id=$1 AND target_type=$2 AND status='approved' ORDER BY created_at DESC`,id,kind);if err!=nil{return nil,err};defer rows.Close();return scanReviews(rows)}
-func(r *reviewRepo)AnonymizeReviewsByUserID(id string)error{_,err:=r.writer.Exec(`UPDATE reviews SET user_id=NULL,comment=CASE WHEN comment='' THEN comment ELSE '[deleted]' END WHERE user_id=$1`,id);return err}
-func(r *reviewRepo)ReportReview(v *models.ReviewReport)error{_,err:=r.writer.Exec(`INSERT INTO review_reports(id,review_id,reporter_id,reason,status,created_at) VALUES($1,$2,$3,$4,'open',$5) ON CONFLICT(review_id,reporter_id) DO UPDATE SET reason=EXCLUDED.reason,status='open'`,v.ID,v.ReviewID,v.ReporterID,v.Reason,v.CreatedAt);return err}
-func(r *reviewRepo)ListPendingReviews(limit int)([]*models.Review,error){rows,err:=r.reader.Query(`SELECT id,target_id,target_type,COALESCE(user_id::text,''),rating,comment,status,moderation_note,created_at,updated_at FROM reviews WHERE status='pending' OR EXISTS(SELECT 1 FROM review_reports rr WHERE rr.review_id=reviews.id AND rr.status='open') ORDER BY created_at LIMIT $1`,limit);if err!=nil{return nil,err};defer rows.Close();return scanReviews(rows)}
-func(r *reviewRepo)ModerateReview(id,adminID,status,note string)error{tx,err:=r.writer.Begin();if err!=nil{return err};defer tx.Rollback();var targetID,targetType string;if err=tx.QueryRow(`UPDATE reviews SET status=$2,moderation_note=$3,moderated_by=$4,moderated_at=now(),updated_at=now() WHERE id=$1 RETURNING target_id,target_type`,id,status,note,adminID).Scan(&targetID,&targetType);err!=nil{return err};_,_=tx.Exec(`UPDATE review_reports SET status='resolved' WHERE review_id=$1`,id);if targetType=="isp"{_,err=tx.Exec(`UPDATE isps SET rating=COALESCE((SELECT avg(rating) FROM reviews WHERE target_id=$1 AND target_type='isp' AND status='approved'),0),review_count=(SELECT count(*) FROM reviews WHERE target_id=$1 AND target_type='isp' AND status='approved'),updated_at=now() WHERE id=$1`,targetID)}else{_,err=tx.Exec(`UPDATE users SET rating=COALESCE((SELECT avg(rating) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),0),total_ratings=(SELECT count(*) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),updated_at=now() WHERE id=$1`,targetID);if err==nil{_,_=tx.Exec(`UPDATE technicians SET rating=COALESCE((SELECT avg(rating) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),0),review_count=(SELECT count(*) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),updated_at=now() WHERE user_id=$1 OR id=$1`,targetID)}};if err!=nil{return err};return tx.Commit()}
-func scanReviews(rows *sql.Rows)([]*models.Review,error){out:=[]*models.Review{};for rows.Next(){v:=&models.Review{};if err:=rows.Scan(&v.ID,&v.TargetID,&v.TargetType,&v.UserID,&v.Rating,&v.Comment,&v.Status,&v.ModerationNote,&v.CreatedAt,&v.UpdatedAt);err!=nil{return nil,err};out=append(out,v)};return out,rows.Err()}
+type reviewRepo struct{ reader, writer *sql.DB }
+
+func NewReviewRepo() *reviewRepo { return &reviewRepo{database.GetReader(), database.GetWriter()} }
+func (r *reviewRepo) CreateReview(v *models.Review) error {
+	if v.Status == "" {
+		v.Status = "pending"
+	}
+	_, err := r.writer.Exec(`INSERT INTO reviews (id,target_id,target_type,user_id,rating,comment,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)`, v.ID, v.TargetID, v.TargetType, v.UserID, v.Rating, v.Comment, v.Status, v.CreatedAt)
+	return err
+}
+func (r *reviewRepo) GetReviewsByTarget(id, kind string) ([]*models.Review, error) {
+	rows, err := r.reader.Query(`SELECT id,target_id,target_type,COALESCE(user_id::text,''),rating,comment,status,moderation_note,created_at,updated_at FROM reviews WHERE target_id=$1 AND target_type=$2 AND status='approved' ORDER BY created_at DESC`, id, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanReviews(rows)
+}
+func (r *reviewRepo) AnonymizeReviewsByUserID(id string) error {
+	_, err := r.writer.Exec(`UPDATE reviews SET user_id=NULL,comment=CASE WHEN comment='' THEN comment ELSE '[deleted]' END WHERE user_id=$1`, id)
+	return err
+}
+func (r *reviewRepo) ReportReview(v *models.ReviewReport) error {
+	_, err := r.writer.Exec(`INSERT INTO review_reports(id,review_id,reporter_id,reason,status,created_at) VALUES($1,$2,$3,$4,'open',$5) ON CONFLICT(review_id,reporter_id) DO UPDATE SET reason=EXCLUDED.reason,status='open'`, v.ID, v.ReviewID, v.ReporterID, v.Reason, v.CreatedAt)
+	return err
+}
+func (r *reviewRepo) ListPendingReviews(limit int) ([]*models.Review, error) {
+	rows, err := r.reader.Query(`SELECT id,target_id,target_type,COALESCE(user_id::text,''),rating,comment,status,moderation_note,created_at,updated_at FROM reviews WHERE status='pending' OR EXISTS(SELECT 1 FROM review_reports rr WHERE rr.review_id=reviews.id AND rr.status='open') ORDER BY created_at LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanReviews(rows)
+}
+func (r *reviewRepo) ModerateReview(id, adminID, status, note string) error {
+	tx, err := r.writer.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var targetID, targetType string
+	if err = tx.QueryRow(`UPDATE reviews SET status=$2,moderation_note=$3,moderated_by=$4,moderated_at=now(),updated_at=now() WHERE id=$1 RETURNING target_id,target_type`, id, status, note, adminID).Scan(&targetID, &targetType); err != nil {
+		return err
+	}
+	_, _ = tx.Exec(`UPDATE review_reports SET status='resolved' WHERE review_id=$1`, id)
+	if targetType == "isp" {
+		_, err = tx.Exec(`UPDATE isps SET rating=COALESCE((SELECT avg(rating) FROM reviews WHERE target_id=$1 AND target_type='isp' AND status='approved'),0),review_count=(SELECT count(*) FROM reviews WHERE target_id=$1 AND target_type='isp' AND status='approved'),updated_at=now() WHERE id=$1`, targetID)
+	} else {
+		_, err = tx.Exec(`UPDATE users SET rating=COALESCE((SELECT avg(rating) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),0),total_ratings=(SELECT count(*) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),updated_at=now() WHERE id=$1`, targetID)
+		if err == nil {
+			_, _ = tx.Exec(`UPDATE technicians SET rating=COALESCE((SELECT avg(rating) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),0),review_count=(SELECT count(*) FROM reviews WHERE target_id=$1 AND target_type='technician' AND status='approved'),updated_at=now() WHERE user_id=$1 OR id=$1`, targetID)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+func scanReviews(rows *sql.Rows) ([]*models.Review, error) {
+	out := []*models.Review{}
+	for rows.Next() {
+		v := &models.Review{}
+		if err := rows.Scan(&v.ID, &v.TargetID, &v.TargetType, &v.UserID, &v.Rating, &v.Comment, &v.Status, &v.ModerationNote, &v.CreatedAt, &v.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}

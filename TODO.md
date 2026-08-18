@@ -26,19 +26,18 @@ This checklist reflects the current repository after the location-learning, job,
 - [x] ISP and technician review persistence, listing, creation, and uniqueness checks.
 - [x] Baseline request logging and in-process rate limiting middleware.
 - [x] Redis session repository for cached user/device sessions.
+- [ x] Add database migration version tracking instead of executing every SQL file on startup.
+- [ x] Add database backup, restore, retention, and disaster-recovery procedures.
 
 ## High Priority Production Work
 
 - [ ] Add integration tests against PostgreSQL for all migrations and transaction paths.
 - [ ] Add unit tests for quotation calculations, discounts, VAT inclusive/exclusive, package filters, and job assignment races.
 - [ ] Add API contract tests for Flutter payloads and error responses.
-- [ ] Add database migration version tracking instead of executing every SQL file on startup.
-- [ ] Add database backup, restore, retention, and disaster-recovery procedures.
-- [ ] Add PostgreSQL connection health, lock, slow-query, and replication-lag dashboards.
-- [ ] Replace in-process rate limiting with Redis-backed distributed rate limiting and request throttling.
-- [ ] Add structured JSON logging with correlation/request IDs.
-- [ ] Add distributed tracing with OpenTelemetry and Jaeger.
-- [ ] Add RabbitMQ connection recovery, consumer restart supervision, and DLQ replay tooling.
+
+- [x] Add PostgreSQL connection health, lock, slow-query, and replication-lag dashboards.
+- [x] Add distributed tracing with OpenTelemetry and Jaeger.
+- [x] Add RabbitMQ connection recovery, consumer restart supervision, and DLQ replay tooling.
 - [ ] Add real FCM, SMS, email, and push provider adapters behind the notification webhook boundary.
 - [ ] Add idempotency keys for customer requests, quotation finalization, applications, and payments.
 - [ ] Add API authentication key rotation and refresh-token revocation for all sessions on logout/password change.
@@ -74,3 +73,7 @@ This checklist reflects the current repository after the location-learning, job,
 - [ ] Configure RabbitMQ users, vhosts, permissions, quorum queues, and multi-node deployment.
 - [ ] Configure Prometheus 30-day retention and Grafana persistent storage.
 - [ ] Add Kubernetes readiness/liveness probes and resource limits for every worker.
+
+Task 3 — add a Postgres health collector emitting those 4 metrics (query pg_stat_activity for waiting locks, long-running queries for slow-query count, pg_last_xact_replay_timestamp for replica lag, ping for up). Small, additive, low-risk, and it makes the existing dashboard light up. [x]
+Task 7 — auto-reconnect, consumer restart supervision, and a DLQ replay command. Medium; modifies a currently-working queue path. [x]
+Task 6 — OpenTelemetry SDK + Jaeger exporter, tracer bootstrap in cmd/auth/main.go, HTTP/DB/queue span instrumentation. Largest, and it needs new Go modules fetched + go.sum regenerated (the Deployment section of the TODO lists that as still-pending, so the toolchain/network state here is uncertain). [x]

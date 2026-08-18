@@ -31,4 +31,6 @@ func (s *InstallationService) GetInstallationByID(installationID string) (*model
 	return s.installationRepo.GetInstallationByID(installationID)
 }
 
-func (s *InstallationService) UpdateInstallation(installation *models.Installation) error { return s.installationRepo.UpdateInstallation(installation) }
+func (s *InstallationService) UpdateInstallation(installation *models.Installation) error {
+	return s.installationRepo.UpdateInstallation(installation)
+}

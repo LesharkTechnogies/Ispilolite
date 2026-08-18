@@ -109,22 +109,31 @@ func (s *Service) envelope(p *Page, source, query string, page, pageSize, offset
 		p = &Page{Items: []interface{}{}}
 	}
 	monitoring.SearchRequests.WithLabelValues(source, strconv.FormatBool(degraded)).Inc()
-	returned:=0;value:=reflect.ValueOf(p.Items);if value.IsValid()&&(value.Kind()==reflect.Slice||value.Kind()==reflect.Array){returned=value.Len()};hasMore:=offset+returned<p.Total;nextCursor:="";if hasMore{nextCursor=dto.EncodeCursor(offset+returned)}
+	returned := 0
+	value := reflect.ValueOf(p.Items)
+	if value.IsValid() && (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) {
+		returned = value.Len()
+	}
+	hasMore := offset+returned < p.Total
+	nextCursor := ""
+	if hasMore {
+		nextCursor = dto.EncodeCursor(offset + returned)
+	}
 	return dto.SearchResult{
 		Items:       p.Items,
 		Suggestions: p.Suggestions,
 		DidYouMean:  p.DidYouMean,
 		Meta: dto.SearchMeta{
-			Source:   source,
-			Total:    p.Total,
-			Page:     page,
-			PageSize: pageSize,
-			TookMS:   time.Since(start).Milliseconds(),
-			Query:    query,
-			Fallback: fallback,
-			Degraded: degraded,
+			Source:     source,
+			Total:      p.Total,
+			Page:       page,
+			PageSize:   pageSize,
+			TookMS:     time.Since(start).Milliseconds(),
+			Query:      query,
+			Fallback:   fallback,
+			Degraded:   degraded,
 			NextCursor: nextCursor,
-			HasMore: hasMore,
+			HasMore:    hasMore,
 		},
 	}
 }
@@ -153,9 +162,14 @@ func (s *Service) SearchTechnicians(ctx context.Context, p dto.SearchParams) dto
 
 func (s *Service) resolveLocation(ctx context.Context, p dto.SearchParams) dto.SearchParams {
 	postgres, ok := s.fallback.(*PostgresRepository)
-	if !ok || (p.Query == "" && p.Village == "") { return p }
+	if !ok || (p.Query == "" && p.Village == "") {
+		return p
+	}
 	resolved, _, err := postgres.expandLearnedPlace(ctx, p)
-	if err != nil { s.logger.Printf("search: learned location resolution failed: %v", err); return p }
+	if err != nil {
+		s.logger.Printf("search: learned location resolution failed: %v", err)
+		return p
+	}
 	return resolved
 }
 

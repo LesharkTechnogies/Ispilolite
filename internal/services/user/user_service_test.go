@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"ispilolite/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"ispilolite/internal/models"
 )
 
 type MockUserRepository struct {

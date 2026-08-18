@@ -114,6 +114,7 @@ func functionScore(inner map[string]interface{}, funcs []map[string]interface{})
 		},
 	}
 }
+
 // ---------------------------------------------------------------------------
 // ISP recommendations
 // ---------------------------------------------------------------------------
@@ -169,11 +170,11 @@ func buildRecommendISPQuery(p dto.RecommendParams) map[string]interface{} {
 func buildSimilarISPQuery(p dto.RecommendParams) map[string]interface{} {
 	mlt := map[string]interface{}{
 		"more_like_this": map[string]interface{}{
-			"fields":          []string{"name", "description", "coverage_areas", "county", "sub_county"},
-			"like":            []map[string]interface{}{{"_index": index.ISPIndex, "_id": p.SeedID}},
-			"min_term_freq":   1,
-			"min_doc_freq":    1,
-			"max_query_terms": 25,
+			"fields":               []string{"name", "description", "coverage_areas", "county", "sub_county"},
+			"like":                 []map[string]interface{}{{"_index": index.ISPIndex, "_id": p.SeedID}},
+			"min_term_freq":        1,
+			"min_doc_freq":         1,
+			"max_query_terms":      25,
 			"minimum_should_match": "20%",
 		},
 	}
@@ -276,11 +277,11 @@ func buildRecommendTechQuery(p dto.RecommendParams) map[string]interface{} {
 func buildSimilarTechQuery(p dto.RecommendParams) map[string]interface{} {
 	mlt := map[string]interface{}{
 		"more_like_this": map[string]interface{}{
-			"fields":          []string{"skills", "roles", "isp_name", "name"},
-			"like":            []map[string]interface{}{{"_index": index.TechnicianIndex, "_id": p.SeedID}},
-			"min_term_freq":   1,
-			"min_doc_freq":    1,
-			"max_query_terms": 25,
+			"fields":               []string{"skills", "roles", "isp_name", "name"},
+			"like":                 []map[string]interface{}{{"_index": index.TechnicianIndex, "_id": p.SeedID}},
+			"min_term_freq":        1,
+			"min_doc_freq":         1,
+			"max_query_terms":      25,
 			"minimum_should_match": "10%",
 		},
 	}
