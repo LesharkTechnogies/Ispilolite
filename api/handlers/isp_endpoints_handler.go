@@ -18,6 +18,7 @@ import (
 	"ispilolite/internal/services/isp"
 	"ispilolite/internal/services/user"
 	"ispilolite/internal/utils"
+	"ispilolite/pkg/notifications"
 )
 
 // ISPEndpointsHandler handles ISP-specific requests.
@@ -100,6 +101,33 @@ func (h *ISPEndpointsHandler) ReadNotification(w http.ResponseWriter, r *http.Re
 		return
 	}
 	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "notification marked as read"})
+}
+
+func (h *ISPEndpointsHandler) StreamNotifications(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, "streaming is not supported")
+		return
+	}
+	updates, unsubscribe := notifications.Default.Subscribe(userIDFromContext(r.Context()))
+	defer unsubscribe()
+	_, _ = w.Write([]byte(": connected\n\n"))
+	flusher.Flush()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case payload, ok := <-updates:
+			if !ok {
+				return
+			}
+			_, _ = w.Write([]byte("event: notification\ndata: " + string(payload) + "\n\n"))
+			flusher.Flush()
+		}
+	}
 }
 
 // GetProfile returns the ISP's profile.

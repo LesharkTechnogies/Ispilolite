@@ -117,6 +117,13 @@ func (r *ispRepo) UpdatePackage(pkg *models.ISPPackage) error {
 	if err != nil {
 		return err
 	}
+	var activeSubscriptions int
+	if err = tx.QueryRow(`SELECT count(*) FROM package_subscriptions WHERE package_id=$1 AND status IN ('pending','active','suspended')`, pkg.ID).Scan(&activeSubscriptions); err != nil {
+		return err
+	}
+	if activeSubscriptions > 0 {
+		return fmt.Errorf("package has active subscriptions and cannot be changed")
+	}
 	_, err = tx.Exec(`UPDATE isp_packages SET name=$1,category=$2,speed_value=$3,speed_unit_id=$4,base_price=$5,billing_cycle=$6,capacity_type=$7,capacity_value=NULLIF($8,0),capacity_unit_id=NULLIF($9,'')::uuid,is_active=$10,description=$11,version=$12,max_subscriptions=NULLIF($13,0),updated_at=now() WHERE id=$14 AND isp_id=$15`, pkg.Name, pkg.Category, pkg.SpeedValue, pkg.SpeedUnitID, pkg.BasePrice, pkg.BillingCycle, pkg.CapacityType, pkg.CapacityValue, pkg.CapacityUnitID, pkg.IsActive, pkg.Description, version, pkg.MaxSubscriptions, pkg.ID, pkg.ISP_ID)
 	if err != nil {
 		return err
@@ -396,7 +403,20 @@ func (r *ispRepo) CreatePackageSubscription(reservationID, customerID string) (*
 	return s, nil
 }
 func (r *ispRepo) UpdatePackageSubscription(id, actor, status string, endsAt *time.Time) error {
-	res, err := r.dbWriter.Exec(`UPDATE package_subscriptions SET status=$1,started_at=CASE WHEN $1='active' AND started_at IS NULL THEN now() ELSE started_at END,ends_at=COALESCE($2,ends_at),updated_at=now() WHERE id=$3 AND (customer_id=$4 OR isp_id=$4) AND NOT(status IN('cancelled','expired'))`, status, endsAt, id, actor)
+	tx, err := r.dbWriter.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var current string
+	if err = tx.QueryRow(`SELECT status FROM package_subscriptions WHERE id=$1 AND (customer_id=$2 OR isp_id=$2) FOR UPDATE`, id, actor).Scan(&current); err != nil {
+		return err
+	}
+	allowed := map[string]map[string]bool{"pending": {"active": true, "cancelled": true, "expired": true}, "active": {"suspended": true, "cancelled": true, "expired": true}, "suspended": {"active": true, "cancelled": true, "expired": true}}
+	if !allowed[current][status] {
+		return fmt.Errorf("invalid subscription transition from %s to %s", current, status)
+	}
+	res, err := tx.Exec(`UPDATE package_subscriptions SET status=$1,started_at=CASE WHEN $1='active' AND started_at IS NULL THEN now() ELSE started_at END,ends_at=COALESCE($2,ends_at),updated_at=now() WHERE id=$3`, status, endsAt, id)
 	if err != nil {
 		return err
 	}
@@ -404,9 +424,12 @@ func (r *ispRepo) UpdatePackageSubscription(id, actor, status string, endsAt *ti
 	if n == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	return tx.Commit()
 }
 func (r *ispRepo) ListPackageSubscriptions(userID, role, status string, limit int) ([]*models.PackageSubscription, error) {
+	if _, err := r.dbWriter.Exec(`UPDATE package_subscriptions SET status='expired',updated_at=now() WHERE status IN ('pending','active','suspended') AND ends_at IS NOT NULL AND ends_at<=now()`); err != nil {
+		return nil, err
+	}
 	field := "customer_id"
 	if role == "isp" {
 		field = "isp_id"

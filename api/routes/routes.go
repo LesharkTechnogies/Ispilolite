@@ -108,6 +108,7 @@ func SetupRouter() http.Handler {
 	api.GET("/my/coverage/recommendations", authHandler("isp", ispEndpoints.GetCoverageRecommendations))
 	api.GET("/my/notifications", authHandler("isp", ispEndpoints.GetNotifications))
 	api.PUT("/my/notifications/:id", authHandler("isp", ispEndpoints.ReadNotification))
+	api.GET("/my/notifications/stream", authHandler("", ispEndpoints.StreamNotifications))
 	api.GET("/available-jobs", authHandlerByRole(map[string]http.HandlerFunc{"technician": technician.GetAvailableJobs, "isp": technician.GetAvailableJobs}))
 	api.GET("/my/technician-jobs", authHandler("technician", technician.GetJobs))
 	api.POST("/jobs/:id/apply", authHandler("", technician.ApplyToJob))

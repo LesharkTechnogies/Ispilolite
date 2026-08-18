@@ -56,9 +56,9 @@ This checklist reflects the current repository after the location-learning, job,
 - [x] Add Elasticsearch index lifecycle, reindex, and mapping migration jobs.
 - [x] Add API pagination metadata and cursor pagination for high-volume search lists.
 - [x] Backfill legacy `isp_packages.speed` and `isp_packages.price` into normalized speed units/base prices.
-- [ ] Add package archive/delete endpoints and prevent changes to packages referenced by active subscriptions.
-- [ ] Add package availability/capacity reservation and subscription lifecycle enforcement.
-- [ ] Add WebSocket or SSE delivery for notification updates.
+- [x] Add package archive/delete endpoints and prevent changes to packages referenced by active subscriptions.
+- [x] Add package availability/capacity reservation and subscription lifecycle enforcement.
+- [x] Add WebSocket or SSE delivery for notification updates.
 - [ ] Add Grafana dashboards and Prometheus alert rules for p95 latency, error rate, DB saturation, queue depth, and search fallback rate.
 - [ ] Add OpenAPI generation and CI schema compatibility checks.
 

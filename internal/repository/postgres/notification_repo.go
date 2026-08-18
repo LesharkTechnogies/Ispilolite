@@ -7,6 +7,7 @@ import (
 
 	"ispilolite/internal/models"
 	"ispilolite/pkg/database"
+	"ispilolite/pkg/notifications"
 )
 
 type notificationRepository struct{ dbReader, dbWriter *sql.DB }
@@ -21,6 +22,9 @@ func (r *notificationRepository) CreateNotification(notification *models.Notific
 		return err
 	}
 	_, err = r.dbWriter.Exec(`INSERT INTO notifications (id,user_id,type,title,message,data,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (user_id,type,(data->>'location_id')) WHERE type='coverage_recommendation' DO UPDATE SET title=EXCLUDED.title,message=EXCLUDED.message,data=EXCLUDED.data`, notification.ID, notification.UserID, notification.Type, notification.Title, notification.Message, data, notification.CreatedAt)
+	if err == nil {
+		notifications.Default.Publish(notification)
+	}
 	return err
 }
 
