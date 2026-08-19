@@ -31,5 +31,5 @@ func (h *CriticalAlertHandler) Send(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	respondWithJSON(w, http.StatusAccepted, dto.Response{Success: true, Message: "critical alert sent"})
+	respondWithJSON(w, http.StatusAccepted,  dto.APIResponse{Success: true, Message: "critical alert sent"})
 }

@@ -24,7 +24,7 @@ func (h *NotificationHandler) List(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "failed to list notifications")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: items})
 }
 
 func (h *NotificationHandler) Read(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func (h *NotificationHandler) Read(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusNotFound, "notification not found")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "notification marked as read"})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Message: "notification marked as read"})
 }
 
 func (h *NotificationHandler) Stream(w http.ResponseWriter, r *http.Request) {

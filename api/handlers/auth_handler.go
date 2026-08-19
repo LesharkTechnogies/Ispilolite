@@ -45,7 +45,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	recordAudit(r, "user.register", "REGISTER", "user", user.ID, "user registered and verification code sent", true, nil)
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Message: "verification code sent", Data: map[string]any{"user_id": user.ID, "expires_in": expiresIn}})
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{Success: true, Message: "verification code sent", Data: map[string]any{"user_id": user.ID, "expires_in": expiresIn}})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +86,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	recordAudit(r, "user.login_otp_requested", "LOGIN", "user", user.ID, "login verification code sent", true, nil)
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "OTP sent to your phone", Data: map[string]any{"user_id": user.ID, "expires_in": expiresIn}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Message: "OTP sent to your phone", Data: map[string]any{"user_id": user.ID, "expires_in": expiresIn}})
 }
 
 func recordAudit(r *http.Request, event, action, resourceType, resourceID, description string, success bool, metadata map[string]interface{}) {
@@ -118,14 +118,14 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"access_token": accessToken, "token_type": "Bearer", "expires_in": expiresIn}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: map[string]any{"access_token": accessToken, "token_type": "Bearer", "expires_in": expiresIn}})
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if token, err := bearerTokenFromRequest(r); err == nil {
 		h.authService.Logout(token)
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "logged out successfully"})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Message: "logged out successfully"})
 }
 
 func (h *AuthHandler) respondWithTokens(w http.ResponseWriter, user *models.User) {
@@ -139,7 +139,7 @@ func (h *AuthHandler) respondWithTokens(w http.ResponseWriter, user *models.User
 		respondWithError(w, http.StatusInternalServerError, "failed to create refresh token")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"access_token": accessToken, "refresh_token": refreshToken, "token_type": "Bearer", "expires_in": expiresIn, "user": user}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: map[string]any{"access_token": accessToken, "refresh_token": refreshToken, "token_type": "Bearer", "expires_in": expiresIn, "user": user}})
 }
 
 func bearerTokenFromRequest(r *http.Request) (string, error) {

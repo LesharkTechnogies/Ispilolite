@@ -39,5 +39,5 @@ func (h *SMSAdminHandler) Send(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	respondWithJSON(w, http.StatusAccepted, dto.Response{Success: true, Message: "SMS accepted", Data: map[string]int{"recipients": count}})
+	respondWithJSON(w, http.StatusAccepted,  dto.APIResponse{Success: true, Message: "SMS accepted", Data: map[string]int{"recipients": count}})
 }

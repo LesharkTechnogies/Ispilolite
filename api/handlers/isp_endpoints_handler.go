@@ -56,7 +56,7 @@ func (h *ISPEndpointsHandler) GetCoverageAreas(w http.ResponseWriter, r *http.Re
 		respondWithError(w, http.StatusInternalServerError, "failed to list coverage areas")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"areas": areas}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: map[string]any{"areas": areas}})
 }
 
 func (h *ISPEndpointsHandler) AddCoverageArea(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +69,7 @@ func (h *ISPEndpointsHandler) AddCoverageArea(w http.ResponseWriter, r *http.Req
 		respondWithError(w, http.StatusInternalServerError, "failed to add coverage area")
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Message: "coverage area added"})
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{Success: true, Message: "coverage area added"})
 }
 
 func (h *ISPEndpointsHandler) GetCoverageRecommendations(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +78,7 @@ func (h *ISPEndpointsHandler) GetCoverageRecommendations(w http.ResponseWriter, 
 		respondWithError(w, http.StatusInternalServerError, "failed to create coverage recommendations")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"recommendations": places}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: map[string]any{"recommendations": places}})
 }
 
 func (h *ISPEndpointsHandler) GetNotifications(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +87,7 @@ func (h *ISPEndpointsHandler) GetNotifications(w http.ResponseWriter, r *http.Re
 		respondWithError(w, http.StatusInternalServerError, "failed to list notifications")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: items})
 }
 
 func (h *ISPEndpointsHandler) ReadNotification(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +100,7 @@ func (h *ISPEndpointsHandler) ReadNotification(w http.ResponseWriter, r *http.Re
 		respondWithError(w, http.StatusNotFound, "notification not found")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "notification marked as read"})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Message: "notification marked as read"})
 }
 
 func (h *ISPEndpointsHandler) StreamNotifications(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +153,7 @@ func (h *ISPEndpointsHandler) UpdateProfile(w http.ResponseWriter, r *http.Reque
 		respondWithError(w, http.StatusInternalServerError, "failed to update isp profile")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "isp profile updated"})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Message: "isp profile updated"})
 }
 
 // GetInstallations returns a list of the ISP's installations.
@@ -199,7 +199,7 @@ func (h *ISPEndpointsHandler) UpdateInstallation(w http.ResponseWriter, r *http.
 		respondWithError(w, http.StatusInternalServerError, "failed to update installation")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: installation})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: installation})
 }
 
 // GetTechnicians returns a list of the ISP's technicians.
@@ -239,7 +239,7 @@ func (h *ISPEndpointsHandler) AddTechnician(w http.ResponseWriter, r *http.Reque
 		respondWithError(w, http.StatusInternalServerError, "failed to send technician verification code")
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Message: "technician registered; phone verification required", Data: map[string]any{"technician_id": technician.ID, "expires_in": expiresIn}})
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{Success: true, Message: "technician registered; phone verification required", Data: map[string]any{"technician_id": technician.ID, "expires_in": expiresIn}})
 }
 
 // RemoveTechnician removes a technician from the ISP.
@@ -256,7 +256,7 @@ func (h *ISPEndpointsHandler) RemoveTechnician(w http.ResponseWriter, r *http.Re
 		respondWithError(w, http.StatusInternalServerError, "failed to remove technician")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Message: "technician removed"})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Message: "technician removed"})
 }
 
 // CreatePackage creates a new internet package.
@@ -275,7 +275,7 @@ func (h *ISPEndpointsHandler) CreatePackage(w http.ResponseWriter, r *http.Reque
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Data: pkg})
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{Success: true, Data: pkg})
 }
 
 // UpdatePackage updates an existing internet package.
@@ -299,7 +299,7 @@ func (h *ISPEndpointsHandler) UpdatePackage(w http.ResponseWriter, r *http.Reque
 		respondWithError(w, http.StatusInternalServerError, "failed to update package")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: pkg})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: pkg})
 }
 
 func (h *ISPEndpointsHandler) SetPackageCountyPrice(w http.ResponseWriter, r *http.Request) {
@@ -318,7 +318,7 @@ func (h *ISPEndpointsHandler) SetPackageCountyPrice(w http.ResponseWriter, r *ht
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "county price updated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "county price updated"})
 }
 func (h *ISPEndpointsHandler) ArchivePackage(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSuffix(pathParam(r.URL.Path, "/api/v1/packages/"), "/archive")
@@ -326,7 +326,7 @@ func (h *ISPEndpointsHandler) ArchivePackage(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, 404, "package not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "package archived"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "package archived"})
 }
 func (h *ISPEndpointsHandler) DeletePackage(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/packages/")
@@ -334,7 +334,7 @@ func (h *ISPEndpointsHandler) DeletePackage(w http.ResponseWriter, r *http.Reque
 		respondWithError(w, 409, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "package deleted"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "package deleted"})
 }
 func (h *ISPEndpointsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -343,7 +343,7 @@ func (h *ISPEndpointsHandler) ListSubscriptions(w http.ResponseWriter, r *http.R
 		respondWithError(w, 500, "failed to list subscriptions")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *ISPEndpointsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/subscriptions/")
@@ -365,5 +365,5 @@ func (h *ISPEndpointsHandler) UpdateSubscription(w http.ResponseWriter, r *http.
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "subscription updated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "subscription updated"})
 }

@@ -2,10 +2,12 @@ package user
 
 import (
 	"testing"
+	"time"
+
+	"ispilolite/internal/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"ispilolite/internal/models"
 )
 
 type MockUserRepository struct {
@@ -106,4 +108,26 @@ func TestUserService_SanitizeAndDeleteUser(t *testing.T) {
 
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
+}
+func (m *MockUserRepository) ListUsersForMessaging(role string, userIDs []string) ([]*models.User, error) {
+	args := m.Called(role, userIDs)
+	if users, ok := args.Get(0).([]*models.User); ok {
+		return users, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockUserRepository) CreateRefreshSession(sessionID, userID, tokenHash string, expiresAt time.Time) error {
+	args := m.Called(sessionID, userID, tokenHash, expiresAt)
+	return args.Error(0)
+}
+
+func (m *MockUserRepository) RefreshSessionActive(sessionID, tokenHash string) (bool, error) {
+	args := m.Called(sessionID, tokenHash)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockUserRepository) RevokeAllRefreshSessions(userID string) error {
+	args := m.Called(userID)
+	return args.Error(0)
 }

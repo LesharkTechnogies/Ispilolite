@@ -221,10 +221,6 @@ func suggestIndex(domain string) (string, bool) {
 	}
 }
 
-// formatKM renders a radius as an ES distance string ("25km").
-func formatKM(km float64) string {
-	return strconv.FormatFloat(km, 'f', -1, 64) + "km"
-}
 
 // toFloat coerces an ES sort value (usually json.Number/float64) to float64.
 func toFloat(v interface{}) float64 {

@@ -10,6 +10,7 @@ import (
 	"ispilolite/api/dto"
 	"ispilolite/internal/repository/postgres"
 	quotationsvc "ispilolite/internal/services/quotation"
+
 )
 
 type QuotationHandler struct{ service *quotationsvc.Service }
@@ -35,7 +36,7 @@ func (h *QuotationHandler) Finalize(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, err)
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Message: "quotation finalized", Data: map[string]interface{}{"quotation": q, "public_url": "https://quotations.ispilo.co.ke/" + q.PublicCode}})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Message: "quotation finalized", Data: map[string]interface{}{"quotation": q, "public_url": "https://quotations.ispilo.co.ke/" + q.PublicCode}})
 }
 func (h *QuotationHandler) List(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -44,7 +45,7 @@ func (h *QuotationHandler) List(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list quotations")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *QuotationHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/quotations/")
@@ -53,7 +54,7 @@ func (h *QuotationHandler) Get(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, err)
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: q})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: q})
 }
 
 func (h *QuotationHandler) DownloadDocument(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +87,7 @@ func (h *QuotationHandler) Respond(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, err)
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "quotation status updated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "quotation status updated"})
 }
 func (h *QuotationHandler) Public(w http.ResponseWriter, r *http.Request) {
 	code := pathParam(r.URL.Path, "/api/v1/public/quotations/")
@@ -95,7 +96,7 @@ func (h *QuotationHandler) Public(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 404, "quotation not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: q})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: q})
 }
 func (h *QuotationHandler) Units(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -104,7 +105,7 @@ func (h *QuotationHandler) Units(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list units")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *QuotationHandler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 	role := userRoleFromContext(r.Context())
@@ -122,7 +123,7 @@ func (h *QuotationHandler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, err)
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: unit})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: unit})
 }
 func (h *QuotationHandler) respondError(w http.ResponseWriter, err error) {
 	switch {

@@ -18,21 +18,22 @@ import (
 
 type ESRepository struct {
 	client *elastic.Client
+	url    string
 	logger *log.Logger
 }
 
-func NewESRepository(client *elastic.Client, logger *log.Logger) *ESRepository {
+func NewESRepository(client *elastic.Client, url string, logger *log.Logger) *ESRepository {
 	if logger == nil {
 		logger = log.New(io.Discard, "", 0)
 	}
-	return &ESRepository{client: client, logger: logger}
+	return &ESRepository{client: client, url: url, logger: logger}
 }
 
 func (r *ESRepository) Healthy(ctx context.Context) bool {
 	if r == nil || r.client == nil {
 		return false
 	}
-	_, _, err := r.client.Ping(r.client.GetConfig().URL[0]).Do(ctx)
+	_, _, err := r.client.Ping(r.url).Do(ctx)
 	if err != nil {
 		r.logger.Printf("WARN: elasticsearch ping failed: %v", err)
 		return false

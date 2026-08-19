@@ -22,7 +22,7 @@ func (h *ReviewAdminHandler) Pending(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list reviews")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *ReviewAdminHandler) Moderate(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/admin/reviews/")
@@ -38,5 +38,5 @@ func (h *ReviewAdminHandler) Moderate(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "review moderated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "review moderated"})
 }

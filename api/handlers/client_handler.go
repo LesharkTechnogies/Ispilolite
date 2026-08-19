@@ -68,7 +68,7 @@ func (h *ClientHandler) RequestDeleteProfile(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, 500, "failed to request deletion")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "profile deletion requested"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "profile deletion requested"})
 }
 func (h *ClientHandler) GetInstallations(w http.ResponseWriter, r *http.Request) {
 	items, err := h.installations.GetInstallationsByClientID(userIDFromContext(r.Context()))
@@ -76,7 +76,7 @@ func (h *ClientHandler) GetInstallations(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, 500, "failed to get installations")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 
 func (h *ClientHandler) CreateInstallation(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +101,7 @@ func (h *ClientHandler) CreateInstallation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	recordAudit(r, "installation.requested", "REQUEST", "service_request", job.ID, "installation requested", true, map[string]interface{}{"county": req.County, "service_type": req.ServiceType})
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Data: job})
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{Success: true, Data: job})
 }
 
 func (h *ClientHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +130,7 @@ func (h *ClientHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	recordAudit(r, "customer_request.created", "CREATE", "service_request", job.ID, "customer service request created", true, map[string]interface{}{"request_type": requestType})
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: job})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: job})
 }
 func (h *ClientHandler) GetJobs(w http.ResponseWriter, r *http.Request) {
 	jobs, err := h.jobs.ListForCustomer(userIDFromContext(r.Context()), strings.TrimSpace(r.URL.Query().Get("status")))
@@ -138,7 +138,7 @@ func (h *ClientHandler) GetJobs(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list jobs")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: jobs})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: jobs})
 }
 func (h *ClientHandler) GetJobApplications(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/my/jobs/")
@@ -147,7 +147,7 @@ func (h *ClientHandler) GetJobApplications(w http.ResponseWriter, r *http.Reques
 		respondWithError(w, 404, "job not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: apps})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: apps})
 }
 func (h *ClientHandler) AssignJob(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/my/jobs/")
@@ -161,7 +161,7 @@ func (h *ClientHandler) AssignJob(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 409, "job is no longer available")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: job})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: job})
 }
 func (h *ClientHandler) SetJobAvailability(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/my/jobs/")
@@ -174,7 +174,7 @@ func (h *ClientHandler) SetJobAvailability(w http.ResponseWriter, r *http.Reques
 		respondWithError(w, 404, "job not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "job availability updated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "job availability updated"})
 }
 func (h *ClientHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/my/jobs/")
@@ -182,7 +182,7 @@ func (h *ClientHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 404, "job not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "job deleted"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "job deleted"})
 }
 func (h *ClientHandler) ReservePackage(w http.ResponseWriter, r *http.Request) {
 	var req dto.PackageSubscriptionRequest
@@ -195,7 +195,7 @@ func (h *ClientHandler) ReservePackage(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 409, err.Error())
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: map[string]interface{}{"reservation_id": reservationID, "expires_in": 900}})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: map[string]interface{}{"reservation_id": reservationID, "expires_in": 900}})
 }
 func (h *ClientHandler) SubscribePackage(w http.ResponseWriter, r *http.Request) {
 	reservationID := strings.TrimSuffix(pathParam(r.URL.Path, "/api/v1/package-reservations/"), "/subscribe")
@@ -208,7 +208,7 @@ func (h *ClientHandler) SubscribePackage(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, 409, "reservation is unavailable or expired")
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: subscription})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: subscription})
 }
 func (h *ClientHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) {
 	items, err := h.packages.ListSubscriptions(userIDFromContext(r.Context()), "customer", r.URL.Query().Get("status"), intQuery(r.URL.Query().Get("limit")))
@@ -216,7 +216,7 @@ func (h *ClientHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request
 		respondWithError(w, 500, "failed to list subscriptions")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *ClientHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/subscriptions/")
@@ -238,5 +238,5 @@ func (h *ClientHandler) UpdateSubscription(w http.ResponseWriter, r *http.Reques
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "subscription updated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "subscription updated"})
 }

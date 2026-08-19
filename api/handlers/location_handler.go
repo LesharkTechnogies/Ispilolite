@@ -52,7 +52,7 @@ func (h *LocationHandler) SearchLocations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, dto.Response{
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{
 		Success: true,
 		Data: map[string]any{
 			"results": results,
@@ -78,7 +78,7 @@ func (h *LocationHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, dto.Response{
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{
 		Success: true,
 		Data:    loc,
 	})
@@ -134,7 +134,7 @@ func (h *LocationHandler) SubmitLocation(w http.ResponseWriter, r *http.Request)
 		submissionsNeeded = 0
 	}
 
-	respondWithJSON(w, http.StatusCreated, dto.Response{
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{
 		Success: true,
 		Message: "location submitted",
 		Data: map[string]any{
@@ -159,7 +159,7 @@ func (h *LocationHandler) ListCountyLocations(w http.ResponseWriter, r *http.Req
 		respondWithError(w, http.StatusInternalServerError, "failed to list county locations")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"county": county, "places": locations}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: map[string]any{"county": county, "places": locations}})
 }
 
 func (h *LocationHandler) AddAlias(w http.ResponseWriter, r *http.Request) {
@@ -175,5 +175,5 @@ func (h *LocationHandler) AddAlias(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: alias})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: alias})
 }

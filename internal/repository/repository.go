@@ -51,9 +51,9 @@ type ReviewRepository interface {
 	ListPendingReviews(limit int) ([]*models.Review, error)
 }
 
-type FlagRepository interface {
-	CreateFlag(flag *models.Flag) error
-}
+// type FlagRepository interface {
+// 	// CreateFlag(flag *models.Flag) error
+// }
 
 type InstallationRepository interface {
 	CreateInstallation(installation *models.Installation) error

@@ -29,6 +29,9 @@ const (
 	maxRecSize        = 50
 	defaultDecayKM    = 15.0 // gaussian scale: score halves ~this far out
 	defaultDecayOffKM = 2.0  // no decay within this radius
+	// defaultNearRadiusKM is the fallback search radius (km) for "near me"
+    // technician queries when the caller doesn't specify one.
+    defaultNearRadiusKM = 10
 )
 
 // recSize clamps a requested recommendation count into sane bounds.

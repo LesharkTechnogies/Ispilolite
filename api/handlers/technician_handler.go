@@ -62,7 +62,7 @@ func (h *TechnicianHandler) GetJobs(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "failed to get job requests")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: map[string]any{"requests": jobs}})
+	respondWithJSON(w, http.StatusOK,  dto.APIResponse{Success: true, Data: map[string]any{"requests": jobs}})
 }
 
 func (h *TechnicianHandler) GetPublicProfile(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +74,7 @@ func (h *TechnicianHandler) GetPublicProfile(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	posts, _ := h.portfolioService.Portfolio(id)
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: map[string]interface{}{"profile": profile, "posts": posts}})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: map[string]interface{}{"profile": profile, "posts": posts}})
 }
 func (h *TechnicianHandler) UpdatePortfolioProfile(w http.ResponseWriter, r *http.Request) {
 	var req dto.TechnicianProfileRequest
@@ -87,7 +87,7 @@ func (h *TechnicianHandler) UpdatePortfolioProfile(w http.ResponseWriter, r *htt
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: p})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: p})
 }
 func (h *TechnicianHandler) CreatePortfolioPost(w http.ResponseWriter, r *http.Request) {
 	var req dto.TechnicianPostRequest
@@ -100,7 +100,7 @@ func (h *TechnicianHandler) CreatePortfolioPost(w http.ResponseWriter, r *http.R
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: p})
+	respondWithJSON(w, 201,   dto.APIResponse{Success: true, Data: p})
 }
 func (h *TechnicianHandler) UpdatePortfolioPost(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/my/portfolio/posts/")
@@ -114,7 +114,7 @@ func (h *TechnicianHandler) UpdatePortfolioPost(w http.ResponseWriter, r *http.R
 		respondWithError(w, 404, "post not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: p})
+	respondWithJSON(w, 200,   dto.APIResponse{Success: true, Data: p})
 }
 func (h *TechnicianHandler) GetMyPortfolioPosts(w http.ResponseWriter, r *http.Request) {
 	items, err := h.portfolioService.MyPosts(userIDFromContext(r.Context()))
@@ -122,7 +122,7 @@ func (h *TechnicianHandler) GetMyPortfolioPosts(w http.ResponseWriter, r *http.R
 		respondWithError(w, 500, "failed to list posts")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,   dto.APIResponse{Success: true, Data: items})
 }
 
 func (h *TechnicianHandler) GetAvailableJobs(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +131,7 @@ func (h *TechnicianHandler) GetAvailableJobs(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusInternalServerError, "failed to get available jobs")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: jobs})
+	respondWithJSON(w, http.StatusOK,   dto.APIResponse{Success: true, Data: jobs})
 }
 
 func (h *TechnicianHandler) ApplyToJob(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +147,7 @@ func (h *TechnicianHandler) ApplyToJob(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusConflict, "job is unavailable")
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Message: "application submitted"})
+	respondWithJSON(w, http.StatusCreated,   dto.APIResponse{Success: true, Message: "application submitted"})
 }
 
 // UpdateJobStatus updates the status of a job.
@@ -163,7 +163,7 @@ func (h *TechnicianHandler) UpdateJobStatus(w http.ResponseWriter, r *http.Reque
 		h.respondJobRequestError(w, err)
 		return
 	}
-	respondWithJSON(w, http.StatusOK, dto.Response{Success: true, Data: job})
+	respondWithJSON(w, http.StatusOK,   dto.APIResponse{Success: true, Data: job})
 }
 
 func (h *TechnicianHandler) CreateJobRequest(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +187,7 @@ func (h *TechnicianHandler) CreateJobRequest(w http.ResponseWriter, r *http.Requ
 		h.respondJobRequestError(w, err)
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Data: job})
+	respondWithJSON(w, http.StatusCreated,   dto.APIResponse{Success: true, Data: job})
 }
 
 func (h *TechnicianHandler) respondJobRequestError(w http.ResponseWriter, err error) {
@@ -217,7 +217,7 @@ func (h *TechnicianHandler) GetTechnicianReviews(w http.ResponseWriter, r *http.
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, dto.Response{
+	respondWithJSON(w, http.StatusOK,   dto.APIResponse{
 		Success: true,
 		Data: map[string]any{
 			"reviews": reviews,
@@ -269,7 +269,7 @@ func (h *TechnicianHandler) CreateTechnicianReview(w http.ResponseWriter, r *htt
 		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, dto.Response{
+	respondWithJSON(w, http.StatusCreated,   dto.APIResponse{
 		Success: true,
 		Message: "review created successfully",
 		Data: map[string]any{
@@ -292,5 +292,5 @@ func (h *TechnicianHandler) ReportReview(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Message: "review reported"})
+	respondWithJSON(w, 201,   dto.APIResponse{Success: true, Message: "review reported"})
 }

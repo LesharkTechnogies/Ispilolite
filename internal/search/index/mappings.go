@@ -13,12 +13,7 @@
 package index
 
 // Index name constants. Prefixed to avoid collisions on a shared cluster.
-const (
-	ISPIndex        = "isilo_isps"
-	TechnicianIndex = "isilo_technicians"
-	LocationIndex   = "isilo_locations"
-)
-
+//declared in indices .go file
 // sharedSettings defines custom analyzers reused across indices:
 //
 //   - autocomplete       : edge n-grams for as-you-type prefix matching.

@@ -35,7 +35,7 @@ func (h *ISPHandler) GetISPs(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list ISPs")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *ISPHandler) GetISPByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.Trim(pathParam(r.URL.Path, "/api/v1/isps/"), "/")
@@ -44,7 +44,7 @@ func (h *ISPHandler) GetISPByID(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 404, "ISP not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: item})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: item})
 }
 func (h *ISPHandler) GetISPPackages(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSuffix(pathParam(r.URL.Path, "/api/v1/isps/"), "/packages")
@@ -53,7 +53,7 @@ func (h *ISPHandler) GetISPPackages(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list ISP packages")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *ISPHandler) GetISPReviews(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSuffix(pathParam(r.URL.Path, "/api/v1/isps/"), "/reviews")
@@ -62,7 +62,7 @@ func (h *ISPHandler) GetISPReviews(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to list reviews")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *ISPHandler) CreateISPReview(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSuffix(pathParam(r.URL.Path, "/api/v1/isps/"), "/reviews")
@@ -79,7 +79,7 @@ func (h *ISPHandler) CreateISPReview(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "failed to create review")
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: v})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: v})
 }
 func (h *ISPHandler) ListPackages(w http.ResponseWriter, r *http.Request) {
 	filter := packageFilter(r)
@@ -88,7 +88,7 @@ func (h *ISPHandler) ListPackages(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: map[string]interface{}{"packages": items, "county": filter.County}})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: map[string]interface{}{"packages": items, "county": filter.County}})
 }
 func (h *ISPHandler) ListPackageUnits(w http.ResponseWriter, r *http.Request) {
 	items, err := h.service.ListPackageUnits(r.URL.Query().Get("dimension"))
@@ -96,7 +96,7 @@ func (h *ISPHandler) ListPackageUnits(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func floatQuery(v string) float64 { n, _ := strconv.ParseFloat(v, 64); return n }
 func intQuery(v string) int       { n, _ := strconv.Atoi(v); return n }

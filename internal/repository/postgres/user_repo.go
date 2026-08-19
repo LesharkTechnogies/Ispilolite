@@ -38,6 +38,23 @@ func (r *userRepo) RefreshSessionActive(sessionID, tokenHash string) (bool, erro
 	}
 	return ok, err
 }
+func (r *userRepo) SanitizeAndDeleteUser(userID string) error {
+	query := `
+		UPDATE users
+		SET status = 'deleted',
+			name = 'Deleted User',
+			email = '',
+			phone = '',
+			username = '',
+			password_hash = '',
+			latitude = NULL,
+			longitude = NULL,
+			updated_at = $1
+		WHERE id = $2
+	`
+	_, err := r.dbWriter.Exec(query, time.Now().UTC(), userID)
+	return err
+}
 
 func (r *userRepo) RevokeAllRefreshSessions(userID string) error {
 	_, err := r.dbWriter.Exec(`UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, userID)

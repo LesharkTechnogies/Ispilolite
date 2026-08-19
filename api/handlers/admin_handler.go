@@ -41,7 +41,7 @@ func (h *AdminHandler) GetDeletionRequests(w http.ResponseWriter, r *http.Reques
 		}
 		items = append(items, map[string]interface{}{"id": id, "phone": phone, "name": name, "email": email, "role": role, "status": status, "requested_at": at})
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }
 func (h *AdminHandler) ApproveDeletion(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -61,7 +61,7 @@ func (h *AdminHandler) ApproveDeletion(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 404, "deletion request not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "user data sanitized"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "user data sanitized"})
 }
 
 func (h *AdminHandler) TaxRates(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +80,7 @@ func (h *AdminHandler) TaxRates(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, v)
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: out})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: out})
 }
 func (h *AdminHandler) CreateTaxRate(w http.ResponseWriter, r *http.Request) {
 	var v models.TaxRate
@@ -96,7 +96,7 @@ func (h *AdminHandler) CreateTaxRate(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "failed to create tax rate")
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: v})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: v})
 }
 func (h *AdminHandler) CreateCustomTaxRate(w http.ResponseWriter, r *http.Request) {
 	var v models.TaxRate
@@ -110,7 +110,7 @@ func (h *AdminHandler) CreateCustomTaxRate(w http.ResponseWriter, r *http.Reques
 		respondWithError(w, 409, "custom tax rate already exists")
 		return
 	}
-	respondWithJSON(w, 201, dto.Response{Success: true, Data: v})
+	respondWithJSON(w, 201,  dto.APIResponse{Success: true, Data: v})
 }
 func (h *AdminHandler) CreateSystemUnit(w http.ResponseWriter, r *http.Request) {
 	var unit models.QuotationUnit
@@ -124,7 +124,7 @@ func (h *AdminHandler) CreateSystemUnit(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	unit.IsSystem = true
-	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Data: unit})
+	respondWithJSON(w, http.StatusCreated,  dto.APIResponse{Success: true, Data: unit})
 }
 func (h *AdminHandler) MyTaxRates(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.QueryContext(r.Context(), `SELECT id,name,rate,is_default FROM tax_rates WHERE is_active=true AND (scope='SYSTEM' OR owner_id=$1) ORDER BY scope,name`, userIDFromContext(r.Context()))
@@ -142,7 +142,7 @@ func (h *AdminHandler) MyTaxRates(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, v)
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: out})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: out})
 }
 func (h *AdminHandler) BusinessProfile(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/admin/business-profiles/")
@@ -156,7 +156,7 @@ func (h *AdminHandler) BusinessProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "failed to save business profile")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "business profile saved"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "business profile saved"})
 }
 func (h *AdminHandler) MyBusinessProfile(w http.ResponseWriter, r *http.Request) {
 	id := userIDFromContext(r.Context())
@@ -167,7 +167,7 @@ func (h *AdminHandler) MyBusinessProfile(w http.ResponseWriter, r *http.Request)
 			respondWithError(w, 404, "business profile not found")
 			return
 		}
-		respondWithJSON(w, 200, dto.Response{Success: true, Data: map[string]string{"legal_name": legal, "registration_number": reg, "tax_number": tax, "address": address, "phone": phone, "email": email, "status": status}})
+		respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: map[string]string{"legal_name": legal, "registration_number": reg, "tax_number": tax, "address": address, "phone": phone, "email": email, "status": status}})
 		return
 	}
 	var p map[string]interface{}
@@ -180,7 +180,7 @@ func (h *AdminHandler) MyBusinessProfile(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, 400, "failed to save business profile")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "business profile submitted"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "business profile submitted"})
 }
 func (h *AdminHandler) ModeratePackage(w http.ResponseWriter, r *http.Request) {
 	id := pathParam(r.URL.Path, "/api/v1/admin/packages/")
@@ -199,7 +199,7 @@ func (h *AdminHandler) ModeratePackage(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 404, "package not found")
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Message: "package moderated"})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Message: "package moderated"})
 }
 func (h *AdminHandler) AuditExport(w http.ResponseWriter, r *http.Request) {
 	start, err := time.Parse(time.RFC3339, r.URL.Query().Get("start"))
@@ -217,7 +217,7 @@ func (h *AdminHandler) AuditExport(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: map[string]interface{}{"path": path, "events": count}})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: map[string]interface{}{"path": path, "events": count}})
 }
 func (h *AdminHandler) AuditDelete(w http.ResponseWriter, r *http.Request) {
 	start, err := time.Parse(time.RFC3339, r.URL.Query().Get("start"))
@@ -235,7 +235,7 @@ func (h *AdminHandler) AuditDelete(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 409, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: map[string]int64{"deleted": count}})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: map[string]int64{"deleted": count}})
 }
 func (h *AdminHandler) AuditList(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -262,5 +262,5 @@ func (h *AdminHandler) AuditList(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(metadata, &data)
 		items = append(items, map[string]interface{}{"id": id, "actor_id": actor, "actor_role": role, "event": event, "action": action, "resource_type": resourceType, "resource_id": resourceID, "description": description, "success": success, "metadata": data, "occurred_at": at})
 	}
-	respondWithJSON(w, 200, dto.Response{Success: true, Data: items})
+	respondWithJSON(w, 200,  dto.APIResponse{Success: true, Data: items})
 }

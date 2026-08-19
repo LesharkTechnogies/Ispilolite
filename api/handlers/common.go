@@ -78,7 +78,7 @@ func respondWithJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func respondWithError(w http.ResponseWriter, status int, message string) {
-	respondWithJSON(w, status, dto.Response{
+	respondWithJSON(w, status,  dto.APIResponse{
 		Success: false,
 		Message: message,
 	})
