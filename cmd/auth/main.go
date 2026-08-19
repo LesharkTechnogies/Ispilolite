@@ -16,6 +16,7 @@ import (
 	"ispilolite/internal/repository/postgres"
 	"ispilolite/internal/repository/redis"
 	authsvc "ispilolite/internal/services/auth"
+	"ispilolite/pkg/audit"
 	"ispilolite/pkg/database"
 	"ispilolite/pkg/monitoring"
 	"ispilolite/pkg/queue"
@@ -45,6 +46,7 @@ func main() {
 
 	collectorStop := make(chan struct{})
 	monitoring.StartDBCollector(collectorStop, database.GetWriter(), database.GetReader())
+	audit.Configure(database.GetWriter(), os.Getenv("AUDIT_ARCHIVE_ROOT")).StartScheduler(context.Background(), time.Local, log.Default())
 	queueCtx, cancelQueue := context.WithCancel(context.Background())
 	var queueService *queue.Service
 	if rabbitURL := os.Getenv("RABBITMQ_URL"); rabbitURL != "" {

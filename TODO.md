@@ -58,7 +58,7 @@ Task 6 — OpenTelemetry SDK + Jaeger exporter, tracer bootstrap in cmd/auth/mai
 
 - [ ] Add idempotency keys for customer requests, quotation finalization, applications, and payments.
 - [ ] Add API authentication key rotation and refresh-token revocation for all sessions on logout/password change.
-- [ ] Add admin APIs for tax rates, system units, business profiles, package moderation, and audit logs.
+- [x] Add admin APIs for tax rates, system units, business profiles, package moderation, and audit logs.
 
 - [ ] Add quotation payment verification and watermark entitlement checks.
 - [ ] Add ISP package inventory/capacity enforcement when a package is sold.
@@ -81,4 +81,3 @@ Task 6 — OpenTelemetry SDK + Jaeger exporter, tracer bootstrap in cmd/auth/mai
 - [ ] Configure RabbitMQ users, vhosts, permissions, quorum queues, and multi-node deployment.
 - [ ] Configure Prometheus 30-day retention and Grafana persistent storage.
 - [ ] Add Kubernetes readiness/liveness probes and resource limits for every worker.
-

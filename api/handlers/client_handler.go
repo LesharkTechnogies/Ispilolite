@@ -96,9 +96,11 @@ func (h *ClientHandler) CreateInstallation(w http.ResponseWriter, r *http.Reques
 	}
 	job, err := h.jobs.Create(userIDFromContext(r.Context()), &models.JobRequest{RequestType: "internet", Mode: req.Mode, TargetISPID: req.TargetISPID, TechnicianID: req.TargetTechnicianID, LocationID: req.LocationID, County: req.County, Town: req.Town, Village: req.Village, ServiceType: req.ServiceType, SpeedMbps: req.SpeedMbps, Description: req.Description, Budget: req.Budget, PreferredDate: date})
 	if err != nil {
+		recordAudit(r, "installation.requested", "REQUEST", "service_request", "", err.Error(), false, map[string]interface{}{"county": req.County, "service_type": req.ServiceType})
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	recordAudit(r, "installation.requested", "REQUEST", "service_request", job.ID, "installation requested", true, map[string]interface{}{"county": req.County, "service_type": req.ServiceType})
 	respondWithJSON(w, http.StatusCreated, dto.Response{Success: true, Data: job})
 }
 
@@ -123,9 +125,11 @@ func (h *ClientHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 	job, err := h.jobs.Create(userIDFromContext(r.Context()), &models.JobRequest{RequestType: requestType, Mode: req.Mode, TargetISPID: req.TargetISPID, TechnicianID: req.TargetTechnicianID, LocationID: req.LocationID, County: req.County, Town: req.Town, Village: req.Village, ServiceType: req.ServiceType, SpeedMbps: req.SpeedMbps, Description: req.Description, Budget: req.Budget, PreferredDate: date})
 	if err != nil {
+		recordAudit(r, "customer_request.created", "CREATE", "service_request", "", err.Error(), false, map[string]interface{}{"request_type": requestType})
 		respondWithError(w, 400, err.Error())
 		return
 	}
+	recordAudit(r, "customer_request.created", "CREATE", "service_request", job.ID, "customer service request created", true, map[string]interface{}{"request_type": requestType})
 	respondWithJSON(w, 201, dto.Response{Success: true, Data: job})
 }
 func (h *ClientHandler) GetJobs(w http.ResponseWriter, r *http.Request) {

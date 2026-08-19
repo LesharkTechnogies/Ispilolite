@@ -6,11 +6,33 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	dto "ispilolite/api/dto"
 )
 
 const maxJSONBodyBytes = 1 << 20
+
+// pathParam extracts the first path segment that follows prefix. It returns an
+// empty string when path does not start with prefix or when no segment remains.
+// Callers relying on additional trailing segments trim them explicitly.
+func pathParam(path, prefix string) string {
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+
+	remainder := strings.TrimPrefix(path, prefix)
+	remainder = strings.Trim(remainder, "/")
+	if remainder == "" {
+		return ""
+	}
+
+	if idx := strings.IndexRune(remainder, '/'); idx >= 0 {
+		return remainder[:idx]
+	}
+
+	return remainder
+}
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
